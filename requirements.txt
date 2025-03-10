@@ -1,4 +1,4 @@
-copernicumarine >=2.0.1
+copernicumarine
 netCDF4
 matplotlib
 portalocker
