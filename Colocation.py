@@ -1,20 +1,13 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# # COLOCATION TOOL FOR IN-SITU and COPERNICUS GRIDDED PRODUCTS 
+# COLOCATION TOOL FOR IN-SITU and COPERNICUS GRIDDED PRODUCTS 
 
-# ADAPTED TO ARGO/GLIDER NEEDS FOR CHL VALIDATION
+# ADAPTED TO ARGO/GLIDER NEEDS FOR CHL WORKFLOW VALIDATION
 # Author: D.Dobler (Euro-Argo ERIC)
-# Date: 2024-12-20
-
-# Use of the copernicus marine service library
-# Requirements:
-# copernicusmarine
-# dask[distributed] - not working, should be discarded in the end
-# portalocker
+# Date: 2025-03-10
 
 
-# ## I - Libraries imports and credentials handling
 
 import copernicusmarine
 # Nota Bene: Copernicusmarine (both python and CLI) does not work when Ivanti is active. 
@@ -32,19 +25,12 @@ import traceback
 import sys
 import multiprocessing as mp
 from multiprocessing import Pool
-# from dask.distributed import LocalCluster
 import portalocker
 import pickle
 
-
-# To know all the options from the service, uncomment the following line:
-#?copernicusmarine
-#?copernicusmarine.subset
-#get_ipython().run_line_magic('pinfo', 'copernicusmarine.open_dataset')
-
 # copernicusmarine.login()
 # it saved credentials within:
-# C:\Users\ddobler\.copernicusmarine\.copernicusmarine-credentials
+# ~\.copernicusmarine\.copernicusmarine-credentials
 
 
 def secure_write_log_files_with_parallel_access(log_file_path,line2write):
@@ -78,7 +64,7 @@ def secure_write_log_files_with_parallel_access(log_file_path,line2write):
 
 def flush_status_in_file(log_file_path,dictionary):
     """
-    Writes a dictionnary content in an ascii file and handle concurrent access to the file 
+    Writes a dictionary content in an ascii file and handle concurrent access to the file 
     (e.g. in case of parallelization)
 
     Parameters
@@ -189,8 +175,8 @@ def get_resolution(workflow_name,cache_dir,cache_copernicus_resolution_file,clea
     Returns
     -------
     l_dataset_stf : dictionary
-        dictionnary with keys : dataset name
-                         values : dictionnary with keys: spatio-temporal feature (resolution, limits) 
+        dictionary with keys : dataset name
+                         values : dictionary with keys: spatio-temporal feature (resolution, limits) 
                                             and values: either floats for latitude and longitude or str for dates
         
 
@@ -441,7 +427,7 @@ def get_argo_data_from_direct_access(argo_dir,wmo,workflow_name,dl=True):
         CHLA_QC=ds.variables['CHLA_QC'][:]
         
     #print(ds)
-    ds.close()
+    #ds.close()
     
     ref_date=np.datetime64("1950-01-01T00:00:00")
     dates=JULD*86400*np.timedelta64(1, 's')+ref_date
@@ -454,19 +440,20 @@ def get_argo_data_from_direct_access(argo_dir,wmo,workflow_name,dl=True):
     prof=np.arange(n_prof)
     levels=np.arange(n_levels)
     
+    
     if workflow_name == 'chl':
         ds = xr.Dataset(
             data_vars=dict(
                 DATE=(["prof"], dates),
-                LAT=(["prof"], latitudes),
-                LON=(["prof"], longitudes),
+                LAT=(["prof"], latitudes,{'units':ds.variables['LATITUDE'].units}),
+                LON=(["prof"], longitudes,{'units':ds.variables['LONGITUDE'].units}),
                 CYCLE=(["prof"], cycles),
                 DIRECTION=(["prof"], DIRECTION),
                 DATE_QC=(["prof"], dates_qc),
                 POSITION_QC=(["prof"], position_qc),
                 PRES=(["prof", "levels"], PRES),
-                CHLA=(["prof", "levels"], CHLA),
-                CHLA_QC=(["prof", "levels"], CHLA_QC),            
+                CHLA=(["prof", "levels"], CHLA,{'units':ds.variables['CHLA'].units}),
+                CHLA_QC=(["prof", "levels"], CHLA_QC),       
             ),
             coords=dict(
                 prof=prof,
@@ -478,8 +465,8 @@ def get_argo_data_from_direct_access(argo_dir,wmo,workflow_name,dl=True):
         ds = xr.Dataset(
             data_vars=dict(
                 DATE=(["prof"], dates),
-                LAT=(["prof"], latitudes),
-                LON=(["prof"], longitudes),
+                LAT=(["prof"], latitudes,{'units':ds.variables['LATITUDE'].units}),
+                LON=(["prof"], longitudes,{'units':ds.variables['LONGITUDE'].units}),
                 CYCLE=(["prof"], cycles),
                 DATE_QC=(["prof"], dates_qc),
                 POSITION_QC=(["prof"], position_qc),
@@ -555,13 +542,13 @@ def get_argo_data_from_cerbere_access(cerbere_dir,wmo,workflow_name,dl=False):
         ds = xr.Dataset(
             data_vars=dict(
                 DATE=(["prof"], dates),
-                LAT=(["prof"], latitudes),
-                LON=(["prof"], longitudes),
+                LAT=(["prof"], latitudes,{'units':ds.variables['LATITUDE'].units}),
+                LON=(["prof"], longitudes,{'units':ds.variables['LONGITUDE'].units}),
                 CYCLE=(["prof"], cycles),
                 DATE_QC=(["prof"], dates_qc),
                 POSITION_QC=(["prof"], position_qc),
                 PRES=(["prof", "levels"], PRES),
-                CHLA=(["prof", "levels"], CHLA),
+                CHLA=(["prof", "levels"], CHLA,{'units':ds.variables['CHLA'].units}),
                 CHLA_QC=(["prof", "levels"], CHLA_QC),            
             ),
             coords=dict(
@@ -574,8 +561,8 @@ def get_argo_data_from_cerbere_access(cerbere_dir,wmo,workflow_name,dl=False):
         ds = xr.Dataset(
             data_vars=dict(
                 DATE=(["prof"], dates),
-                LAT=(["prof"], latitudes),
-                LON=(["prof"], longitudes),
+                LAT=(["prof"], latitudes,{'units':ds.variables['LATITUDE'].units}),
+                LON=(["prof"], longitudes,{'units':ds.variables['LONGITUDE'].units}),
                 CYCLE=(["prof"], cycles),
                 DATE_QC=(["prof"], dates_qc),
                 POSITION_QC=(["prof"], position_qc),
@@ -823,12 +810,12 @@ def get_bbox_from_df(df,i_dataset_stf,delta_px,verbose=False):
     df : panda dataframe
         output of either get_argo_data_from_index, get_argo_data_from_cerbere_access or get_argo_data_from_direct_access functions
         it shall contain the necessary information for colocation: cycle, date, lat, lon, date_qc and position_qc
-    i_dataset_stf : dictionnary 
+    i_dataset_stf : dictionary 
         spatio-temporal resolution and limits associated to the dataset. It means the function is called for a given copernicus dataset
         with keys : spatio-temporal feature (resolution, limits) 
         and values : either floats for latitude and longitude or str for dates
         keys and values should be as created by the get_resolution function.
-    delta_px : dictionnary
+    delta_px : dictionary
         as defined in the configuration file. keys are 'x', 'y' and 't' strings and values are integers
     verbose (optionnal) : boolean (set to False by default)
         if set to True: additionnal printing are made in the standard output
@@ -836,7 +823,7 @@ def get_bbox_from_df(df,i_dataset_stf,delta_px,verbose=False):
     
     Returns
     -------
-    bbox : dictionnary
+    bbox : dictionary
         with keys: spatio-temporal feature (bbox_dates_min, bbox_dates_max, bbox_lat_min, bbox_lat_max, bbox_lon_west, bbox_lon_east, 
                                             cross_180, spatial_extension_square_deg, temporal_extension_days) 
         and values: - floats for latitudes, longitudes and spatio-temporal extensions 
@@ -995,12 +982,12 @@ def get_data_to_colocate(df,dataset_id,i_dataset_stf,delta_px,cache_copernicus_d
         it shall contain the necessary information for colocation: cycle, date, lat, lon, date_qc and position_qc
     dataset_id : string
         as defined in the l_dataset output of get_workflow_dataset_and_var function
-    i_dataset_stf : dictionnary 
+    i_dataset_stf : dictionary 
         spatio-temporal resolution and limits associated to the dataset. It means the function is called for a given copernicus dataset
         with keys: spatio-temporal feature (resolution, limits) 
         and values: either floats for latitude and longitude or str for dates
         keys and values should be as created by the get_resolution function.
-    delta_px : dictionnary
+    delta_px : dictionary
         as defined in the configuration file. keys are 'x', 'y' and 't' strings and values are integers
     cache_copernicus_downloaded_data_index : string
         complete filename with path where the cache file is stored. The file should include the following fields:
@@ -1178,10 +1165,10 @@ def create_obs_groups(df_in_situ_ini,gp_crit,i_dataset_stf,verbose=False,log4deb
     df_in_situ_ini : panda dataframe
         output of either get_argo_data_from_index, get_argo_data_from_cerbere_access or get_argo_data_from_direct_access functions
         it shall contain the necessary information for colocation: cycle, date, lat, lon, date_qc and position_qc
-    gp_crit : dictionnary
+    gp_crit : dictionary
         grouping criteria in number of close-by pixels, as defined in the configuration file. 
         keys are 'gp_max_x_n', 'gp_max_y_n' and 'gp_max_t_n' strings and values are integers.
-    i_dataset_stf : dictionnary 
+    i_dataset_stf : dictionary 
         spatio-temporal resolution and limits associated to the dataset. It means the function is called for a given copernicus dataset
         with keys: spatio-temporal feature (resolution, limits) 
         and values: either floats for latitude and longitude or str for dates
@@ -1359,7 +1346,7 @@ def get_copernicus_data_for_a_group_of_obs(dataset_id,d_dataset_var,i_obs_group,
     dataset_id : string
         as defined in the l_dataset output of get_workflow_dataset_and_var function
     d_dataset_var : 
-        dictionnary with keys: string from l_dataset
+        dictionary with keys: string from l_dataset
                          values: string array with the variables to extract from the dataset.
         as defined in the d_dataset_var output of get_workflow_dataset_and_var function
     i_obs_group : integer
@@ -1371,12 +1358,12 @@ def get_copernicus_data_for_a_group_of_obs(dataset_id,d_dataset_var,i_obs_group,
     df_in_situ_ini : panda dataframe
         output of either get_argo_data_from_index, get_argo_data_from_cerbere_access or get_argo_data_from_direct_access functions
         it shall contain the necessary information for colocation: cycle, date, lat, lon, date_qc and position_qc
-    i_dataset_stf : dictionnary 
+    i_dataset_stf : dictionary 
         spatio-temporal resolution and limits associated to the dataset. It means the function is called for a given copernicus dataset
         with keys: spatio-temporal feature (resolution, limits) 
         and values: either floats for latitude and longitude or str for dates
         keys and values should be as created by the get_resolution function.
-    delta_px : dictionnary
+    delta_px : dictionary
         as defined in the configuration file. keys are 'x', 'y' and 't' strings and values are integers
     outfile_dir : string
         as defined in the configuration file. Repository where copernicus colocated files will be stored
@@ -1394,7 +1381,7 @@ def get_copernicus_data_for_a_group_of_obs(dataset_id,d_dataset_var,i_obs_group,
         date of analysis for log purpose
     location : string
         location or condition when the test was run, for log purpose
-    gp_crit : dictionnary
+    gp_crit : dictionary
         grouping criteria in number of close-by pixels, as defined in the configuration file. 
         keys are 'gp_max_x_n', 'gp_max_y_n' and 'gp_max_t_n' strings and values are integers.
         only use in this function for log purpose
@@ -1594,19 +1581,19 @@ def get_copernicus_mini_cubes(workflow_name,df_obs,ds_obs,dataset_id,i_dataset_s
         this dataset contains df information and pressure and chlorophyll-a arrays.
     dataset_id : string
         as defined in the l_dataset output of get_workflow_dataset_and_var function
-    i_dataset_stf : dictionnary 
+    i_dataset_stf : dictionary 
         spatio-temporal resolution and limits associated to the dataset. It means the function is called for a given copernicus dataset
         with keys: spatio-temporal feature (resolution, limits) 
         and values: either floats for latitude and longitude or str for dates
         keys and values should be as created by the get_resolution function.
-    delta_px : dictionnary
+    delta_px : dictionary
         as defined in the configuration file. keys are 'x', 'y' and 't' strings and values are integers
     outfile_dir : string
         as defined in the configuration file. Repository where copernicus colocated files are stored
     cache_copernicus_downloaded_data_index : string
         as defined in the configuration file. Complete filename. The cache file indexes copernicus files. 
     d_dataset_var : 
-        dictionnary with keys: string from l_dataset
+        dictionary with keys: string from l_dataset
                          values: string array with the variables to extract from the dataset.
         as defined in the d_dataset_var output of get_workflow_dataset_and_var function
     verbose (optionnal) : boolean (set to False by default)
@@ -1615,13 +1602,17 @@ def get_copernicus_mini_cubes(workflow_name,df_obs,ds_obs,dataset_id,i_dataset_s
     
     Returns
     -------
-    colocated_data : dictionnary of xarray datasets
-        keys are observation ids (prof index in ds_obs)
-        values are xarray datasets containing colocated mini-cube from copernicus dataset
+    colocated_data : dictionary of dictionaries of xarray datasets
+        keys are 'copernicus' and 'insitu'
+        values are dictionnaries with 
+            keys are observation ids (prof index in ds_obs)
+            values are xarray datasets containing colocated mini-cube from copernicus dataset or in-situ observation dataset (coordinates and workflow parameter value)
         
     
     """
     colocated_data={}
+    colocated_copernicus_data={}
+    colocated_insitu_data={}
     
     # For each observation in df_obs, find the correponding line in the cache index and the corresponding copernicus NetCDF local copy.
     df_to_colocate,colocated_files = get_data_to_colocate(df_obs,dataset_id,i_dataset_stf,delta_px,cache_copernicus_downloaded_data_index)
@@ -1684,7 +1675,12 @@ def get_copernicus_mini_cubes(workflow_name,df_obs,ds_obs,dataset_id,i_dataset_s
         # print(i_lon_close_by)
         # print(cop_lon[i_lon_close_by])
         
-        colocated_data[i_obs]=ds_cop_colocated
+        colocated_copernicus_data[i_obs]=ds_cop_colocated
+        colocated_insitu_data[i_obs]=ds_iobs
+    
+    
+    colocated_data['copernicus']=colocated_copernicus_data
+    colocated_data['insitu']=colocated_insitu_data
         
     # print("\n HEHE : On y est enfin, après un peu de sueur ...")
     # print("colocated_data")
@@ -1757,7 +1753,7 @@ if __name__ == '__main__':
     record_format=cf.record_format
     outdir_cop=cf.outdir_cop
     outdir_col_plots=cf.outdir_col_plots
-    outfig_dir=outdir_col_plots + cf.wmo
+    outfig_dir=outdir_col_plots + cf.wmo + "/"
     if not os.path.exists(outdir_cop):os.mkdir(outdir_cop)
     if not os.path.exists(outdir_col_plots):os.mkdir(outdir_col_plots)
     if not os.path.exists(outfig_dir):os.mkdir(outfig_dir)
@@ -2041,9 +2037,27 @@ if __name__ == '__main__':
         
         if (8 in steps_2_run) & (7 in steps_2_run):
             
-            for i_obs in range(144,147):
+            n_obs=len(colocated_data['copernicus'].keys())
+            
+            
+            # value to extract:
+            cop_var_name=d_dataset_var[dataset_id][0]
+            cop_var_MIN,cop_var_MAX=99999,-99999
+            for i_obs in range(n_obs):
+                var_val=(colocated_data['copernicus'][i_obs])[cop_var_name].values
+                cop_var_MIN=np.nanmin([np.nanmin(var_val),cop_var_MIN])
+                cop_var_MAX=np.nanmax([np.nanmax(var_val),cop_var_MAX])
+            cop_var_all_values=(colocated_data['copernicus'][0])[cop_var_name].values
+            cop_var_UNIT=(colocated_data['copernicus'][0])[cop_var_name].units
+            
+            print((colocated_data['insitu'][0])["CHLA"])
+            obs_var_UNIT=(colocated_data['insitu'][0])["CHLA"].units
+            
+            for i_obs in range(n_obs):
+                
                 #obs point:
-                ds_iobs=ds_in_situ.isel(prof=i_obs)
+                #ds_iobs=ds_in_situ.isel(prof=i_obs)
+                ds_iobs=colocated_data['insitu'][i_obs]
                 #read obs coordinates:
                 obs_dati=np.array(ds_iobs['DATE'],dtype='datetime64')
                 obs_cyci=np.array(ds_iobs['CYCLE'])
@@ -2058,41 +2072,30 @@ if __name__ == '__main__':
                 
                 i_notnan=np.where(obs_chli < 99999)
                 
-                obs_prei_notnan=obs_prei[i_notnan]
-                obs_chli_notnan=obs_chli[i_notnan]
+                print("len(i_notnan[0])=",len(i_notnan[0]))
+                if len(i_notnan[0])==0:
+                    obs_prei_notnan=[np.nan]
+                    obs_chli_notnan=[np.nan]
+                else:
+                    obs_prei_notnan=obs_prei[i_notnan]
+                    obs_chli_notnan=obs_chli[i_notnan]
                 
                 obs_chl=[obs_chli_notnan[0], obs_chli_notnan[0]]
-                
-                
-                
-                # print("obs_prei_notnan[0]")
-                # print(obs_prei_notnan[0])
-                # print("obs_prei_notnan")
-                # print(obs_prei_notnan)
-                # print("obs_diri")
-                # print(obs_diri)
-                
-                # print("obs_chli_notnan[0]")
-                # print(obs_chli_notnan[0])
-                # print("obs_chli_notnan")
-                # print(obs_chli_notnan)
-                
+
                 #copernicus points:
-                cop_ds=colocated_data[i_obs]
+                
+                print("Extracting colocated copernicus variable:",cop_var_name)
+                cop_ds=colocated_data['copernicus'][i_obs]
                 cop_dat=cop_ds["time"].values
                 cop_lat=cop_ds["latitude"].values
                 cop_lon=cop_ds["longitude"].values
-                cop_chl=cop_ds["CHL"].values
+                cop_var=cop_ds[cop_var_name].values
                 
-                # test on 145A
+                # Adapt longitude domain when 180 is crossed (test this on 6903024 / 145A)
                 if (np.max(cop_lon)-np.min(cop_lon)>180):
                     cop_lon[np.where(cop_lon<0)]=cop_lon[np.where(cop_lon<0)]+360
                     if obs_loni < 0:obs_loni=obs_loni+360
                     obs_lon=[obs_loni, obs_loni]
-                
-                # print("cop_chl.shape")
-                # print(cop_chl.shape)
-                # print(cop_chl)
                 
                 from time import mktime
                 from datetime import datetime
@@ -2107,15 +2110,8 @@ if __name__ == '__main__':
                 COP_t=np.squeeze(np.reshape(COP_t,(nt*ny*nx,1)))
                 COP_lat=np.squeeze(np.reshape(COP_lat,(nt*ny*nx,1)))
                 COP_lon=np.squeeze(np.reshape(COP_lon,(nt*ny*nx,1)))
-                COP_chl=np.squeeze(np.reshape(cop_chl,(nt*ny*nx,1)))
+                COP_var=np.squeeze(np.reshape(cop_var,(nt*ny*nx,1)))
 
-                
-                # print("obs_chl")
-                # print(obs_chl)
-                # print("np.nanmin(COP_chl),np.nanmax(COP_chl)")
-                # print(np.nanmin(COP_chl),np.nanmax(COP_chl))
-                # print("cop_chl")
-                # print(cop_chl)
                 
                 if not os.path.exists(outfig_dir):
                     os.mkdir(outfig_dir)
@@ -2124,16 +2120,15 @@ if __name__ == '__main__':
                 
                 fig = plt.figure()
                 ax = fig.add_subplot(projection='3d')
-                scat1=ax.scatter(obs_lon, obs_lat, obs_t, c=obs_chl,cmap='jet', vmin=np.nanmin(COP_chl), vmax=np.nanmax(COP_chl),s=30)
-                scat2=ax.scatter(COP_lon, COP_lat, COP_t, s=4,c=COP_chl,cmap='jet')
-                # ax.stem(obs_lon, obs_lat, obs_t,orientation='z',bottom=np.min(obs_t))
-                # ax.stem(obs_lon, obs_lat, obs_t,orientation='x',bottom=np.min(obs_lon))
-                # ax.stem(obs_lon, obs_lat, obs_t,orientation='y',bottom=np.min(obs_lat))
-                plt.colorbar(scat1,pad=0.15)
-                #Colocated data for Chlorophyll-A \n
+                if len(i_notnan[0])==0:
+                    scat1=ax.scatter(obs_lon, obs_lat, obs_t,c='black',s=30)
+                else:
+                    scat1=ax.scatter(obs_lon, obs_lat, obs_t, c=obs_chl, cmap='jet', vmin=cop_var_MIN, vmax=cop_var_MAX,s=30)
+                scat2=ax.scatter(COP_lon, COP_lat, COP_t, c=COP_var, cmap='jet', vmin=cop_var_MIN, vmax=cop_var_MAX,s=4)
+                plt.colorbar(scat2,pad=0.15,label="copernicus " + cop_var_name + "[" + cop_var_UNIT + "]")
                 plt.title("Argo float wmo id " + wmo + " cycle " + "{:d}".format(obs_cyci) + obs_diri + \
-                          "\n{0:s} , {1:.3f}°N, {2:.3f}°E, at {3:.1f}dbar \n value = {4:.2f}".format(np.datetime_as_string(obs_dati,unit='s'),
-                          obs_lati,obs_loni,obs_prei_notnan[0],obs_chli_notnan[0]))
+                          "\n{0:s} , {1:.3f}°N, {2:.3f}°E, at {3:.1f}dbar \n value = {4:.2f} [{5:s}]".format(np.datetime_as_string(obs_dati,unit='s'),
+                          obs_lati,obs_loni,obs_prei_notnan[0],obs_chli_notnan[0],obs_var_UNIT))
                 
                 
                 ax.set_xlabel('lon')
@@ -2157,7 +2152,7 @@ if __name__ == '__main__':
                 plt.savefig(fig_name_prefix + ".png", dpi=200)
                 pickle.dump(fig, open(fig_name_prefix + ".pkl", 'wb'))
                 
-                plt.show()
+                #plt.show()
                 plt.close()
                 
                 # To see the figures in interactive mode:
