@@ -9,7 +9,8 @@ Colocation tool allows to:
 
 ## How to
 To use this tool:
-1) make sure you installed the required libraries: pip install -r requirements.txt
+1) make sure you installed the required libraries:<br>
+> pip install -r requirements.txt
 2) locally update you copernicus credentials (you only need it once):<br>
 > import copernicusmarine <br> copernicusmarine.login()
 
