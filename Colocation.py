@@ -32,7 +32,7 @@ import traceback
 import sys
 import multiprocessing as mp
 from multiprocessing import Pool
-from dask.distributed import LocalCluster
+# from dask.distributed import LocalCluster
 import portalocker
 import pickle
 
@@ -76,6 +76,34 @@ def secure_write_log_files_with_parallel_access(log_file_path,line2write):
             locked=True
         nb_tries=nb_tries+1
 
+def flush_status_in_file(log_file_path,dictionary):
+    """
+    Writes a dictionnary content in an ascii file and handle concurrent access to the file 
+    (e.g. in case of parallelization)
+
+    Parameters
+    ----------
+    log_file_path : str
+        Full path name of the ascii file to modify
+    dictionary : dictionary
+        values must be strings
+
+    """
+    locked=True
+    nb_tries=0
+    while (locked == True) and (nb_tries < 100):
+        try:
+            file = open(log_file_path, 'w')
+            portalocker.lock(file, portalocker.LockFlags.EXCLUSIVE)
+            for key,value in dictionary.items():
+                file.write(f"{key}:{value}\n")
+            portalocker.unlock(file)
+            file.close()
+            locked=False
+        except:
+            locked=True
+        nb_tries=nb_tries+1
+    
 
 def get_cms_data(did,var,lonm,lonp,latm,latp,datm,datp,zm,zp,outd,outf):
     """
@@ -137,46 +165,6 @@ def get_cms_data(did,var,lonm,lonp,latm,latp,datm,datp,zm,zp,outd,outf):
         
 
 
-def get_workflow_dataset_and_var(workflow_name):
-    """
-    Define dataset name and variables from the workflow name. To be discussed: should it be moved
-    in the parameterization part ?
-
-    Parameters
-    ----------
-    workflow_name : str
-        Name of the workflow for which colocation is needed. So far, only "chl" is supported
-    
-    Returns
-    -------
-    l_dataset : list of str
-        list that contains the datasets associated to the workflow
-    d_dataset_var : dicionnary
-        dictionnary with keys: string from l_dataset
-                         values: string array with the variables to extract from the dataset.
-        
-
-    """
-    
-    if workflow_name == "chl":
-        
-        dataset_rrs='cmems_obs-oc_glo_bgc-reflectance_my_l3-multi-4km_P1D'
-        rrs_var=['RRS412','RRS443','RRS490','RRS555','RRS670']
-        dataset_chl='cmems_obs-oc_glo_bgc-plankton_my_l3-multi-4km_P1D'
-        chl_var=['CHL']
-        dataset_Kd='cmems_obs-oc_glo_bgc-transp_my_l3-multi-4km_P1D'
-        Kd_var=['KD490']
-
-        l_dataset=[dataset_chl,dataset_rrs,dataset_Kd]
-        
-        d_dataset_var={}
-        d_dataset_var[dataset_chl]=chl_var
-        d_dataset_var[dataset_rrs]=rrs_var
-        d_dataset_var[dataset_Kd]=Kd_var
-
-    return l_dataset,d_dataset_var
-        
-
 def get_resolution(workflow_name,cache_dir,cache_copernicus_resolution_file,clear_cache=False,verbose=False):
     """
     Get the spatio-temporal resolution and boundaries from the copernicus datasets by either:
@@ -212,7 +200,8 @@ def get_resolution(workflow_name,cache_dir,cache_copernicus_resolution_file,clea
     l_dataset_stf={}
 
     # workflow datasets and vars:
-    l_dataset,d_dataset_var=get_workflow_dataset_and_var(workflow_name)
+    l_dataset=cf.l_dataset
+    d_dataset_var=cf.d_dataset_var
 
     # Test is a cache file with value is present
     if not os.path.exists(cache_dir):
@@ -1242,8 +1231,9 @@ def create_obs_groups(df_in_situ_ini,gp_crit,i_dataset_stf,verbose=False,log4deb
     
     # first create a "fictive" observation id list:
     list_obs_id = np.arange(0,df_in_situ_ini.shape[0])
+    n_elt_ini=len(list_obs_id)
     #list_obs_id = df_in_situ_ini.keys()
-    print("Initial number of observation:", len(list_obs_id))
+    print("Initial number of observation:", n_elt_ini)
     
     #initialise log file for investigations
     if log4debug:
@@ -1295,10 +1285,7 @@ def create_obs_groups(df_in_situ_ini,gp_crit,i_dataset_stf,verbose=False,log4deb
     while (len(list_obs_id) > 0) & (i_group<=df_in_situ_ini.shape[0]) :
     #while (len(list_obs_id) > 0) & (i_group<=600) :
 
-        print(df_in_situ_ini)
-        print(list_obs_id[0])
         df_0=df_in_situ_ini.iloc[list_obs_id[0]]
-        print(df_0)
         lon = df_0['LON']
         lat = df_0['LAT']
         dat = df_0['DATE']
@@ -1347,8 +1334,9 @@ def create_obs_groups(df_in_situ_ini,gp_crit,i_dataset_stf,verbose=False,log4deb
                 file=open(log_file_grp,'a')
                 file.write(line2write)
                 file.close()
-
-        if(i_group%100==0):print("i_group={0:d};nb_elt_group={1:d};n_elt_left_to_group={2:d}".format(i_group,len(i_close_by),len(list_obs_id)))
+                
+        completion_rate=100*(1-len(list_obs_id)/n_elt_ini)
+        if(i_group%100==0):print("i_group={0:d};nb_elt_group={1:d};n_elt_left_to_group={2:d};completion={3:.1f}%".format(i_group,len(i_close_by),len(list_obs_id),completion_rate))
             
         i_group = i_group + 1  
     if verbose: print(group_of_obs)
@@ -1359,7 +1347,7 @@ def create_obs_groups(df_in_situ_ini,gp_crit,i_dataset_stf,verbose=False,log4deb
 
 def get_copernicus_data_for_a_group_of_obs(dataset_id,d_dataset_var,i_obs_group,group_of_obs,df_in_situ_ini,i_dataset_stf,delta_px,outfile_dir,
                                            cache_copernicus_downloaded_data_index,copernicus_method,indexation_method,record_format,log_file_cop,
-                                           analysis_date,location,gp_crit,verbose=True):
+                                           analysis_date,location,gp_crit,spa_lim,tim_lim,verbose=True):
     """
     This function uses copernicusmarine library to download colocated copernicus data for a given group of observations. To download the data, several options 
     are possible: "subset" method or "lazy" loading. When lazy loading is selected, the index selection method can be tuned ("sel", "isel", or "index") 
@@ -1410,6 +1398,10 @@ def get_copernicus_data_for_a_group_of_obs(dataset_id,d_dataset_var,i_obs_group,
         grouping criteria in number of close-by pixels, as defined in the configuration file. 
         keys are 'gp_max_x_n', 'gp_max_y_n' and 'gp_max_t_n' strings and values are integers.
         only use in this function for log purpose
+    spa_lim : float
+        limit in square degrees for the spatial area covered by the group of observation above which the download is not performed (secure if issue in groups)
+    tim_lim : float
+        limit in days for the time span covered by the group of observation above which the download is not performed (secure if issue in groups)
     verbose (optionnal) : boolean (set to False by default)
         if set to True: additionnal printing are made in the standard output
         else: no print
@@ -1440,7 +1432,17 @@ def get_copernicus_data_for_a_group_of_obs(dataset_id,d_dataset_var,i_obs_group,
     cross_180=bbox['cross_180']
     spatial_extension_square_deg=bbox['spatial_extension_square_deg']
     temporal_extension_days=bbox['temporal_extension_days']
-
+    
+    if (spatial_extension_square_deg > spa_lim) or (temporal_extension_days > tim_lim):
+        print("WARNING: the size of box containing the group of observations is above the configured limit; \n " + \
+              "rerun Step 5: create groups of in-situ data to make sure your groups are clean")
+        line2write_fmt="{0:s};{1:s};{2:d}_{3:d}_{4:d};{5:s};{6:s};{7:s};{8:.0f};{9:.5f};{10:.2f};{11:.2f};{12:s}"
+        line2write=line2write_fmt.format(analysis_date,location,gp_crit['gp_max_x_n'],gp_crit['gp_max_y_n'],gp_crit['gp_max_t_n'],dataset_id,"",
+                                         record_format,i_obs_group,time.time()-stime,spatial_extension_square_deg,temporal_extension_days,
+                                         "WARNING: the size of box containing the group of observations is above the configured limit; copernicus data not downloaded.")
+        print(line2write)
+        secure_write_log_files_with_parallel_access(log_file_cop,line2write)
+        return
 
     if copernicus_method == 'lazy':
         print("Subsetting data with the 'lazy' load")
@@ -1552,8 +1554,8 @@ def get_copernicus_data_for_a_group_of_obs(dataset_id,d_dataset_var,i_obs_group,
     
     # Saving in the cache file 
     #"dataset_id;date_min;date_max;lat_min;lat_max;lon_west;lon_east;cross_180;file_name"
-    line2write_fmt="{0:s};{1:s};{2:s};{3:.6f};{4:.6f};{5:.6f};{6:.6f};{7:d};{8:s};{9:d}"
-    line2write=line2write_fmt.format(dataset_id,tmin,tmax,ymin,ymax,bbox_lon_west,bbox_lon_east,cross_180,outfile_name,i_obs_group)
+    line2write_fmt="{0:s};{1:s};{2:s};{3:.6f};{4:.6f};{5:.6f};{6:.6f};{7:d};{8:s};{9:d};{10:s}"
+    line2write=line2write_fmt.format(dataset_id,tmin,tmax,ymin,ymax,bbox_lon_west,bbox_lon_east,cross_180,outfile_name,i_obs_group,analysis_date)
     secure_write_log_files_with_parallel_access(cache_copernicus_downloaded_data_index,line2write)
 
     
@@ -1695,9 +1697,8 @@ if __name__ == '__main__':
     """
     This library extract data from copernicus marine service, colocated with in-situ observations.
     There are 9 steps:
-    Step 0: retrieve parameters from the configuration file Colocation_cfg.py
-    Step 1: get in-situ data
-    Step 2: get copernicus dataset and variables from workflow (will maybe be translated in the configuration file ...)
+    Step 1: retrieve parameters from the configuration file Colocation_cfg.py
+    Step 2: get in-situ data
     Step 3: get copernicus dataset spatio-temporal resolution and limits
     Step 4: get remaining data to colocate
     Step 5: create groups of in-situ data (medium-cubes definition)
@@ -1720,9 +1721,21 @@ if __name__ == '__main__':
     none
     
     """
+    # Initialise the status codes
+    status_file='status.txt'
+    status={}
+    status['stat_step_1']='Not started'
+    status['stat_step_2']='Not started'
+    status['stat_step_3']='Not started'
+    status['stat_step_4']='Not started'
+    status['stat_step_5']='Not started'
+    status['stat_step_6']='Not started'
+    status['stat_step_7']='Not started'
+    status['stat_step_8']='Not started'
+    flush_status_in_file(status_file,status)
     
 
-    print("\n#STEP 0: READING CONFIGURATION") 
+    print("\n#STEP 1: READING CONFIGURATION") 
     import Colocation_cfg as cf
     
     # input data selection
@@ -1733,13 +1746,21 @@ if __name__ == '__main__':
     
     # colocation parameterization
     workflow_name=cf.workflow_name
+    l_dataset=cf.l_dataset
+    d_dataset_var=cf.d_dataset_var
     gp_crit=cf.gp_crit
     delta_px=cf.delta_px
+    spa_lim=cf.spatial_extension_square_deg_limit
+    tim_lim=cf.temporal_extension_days_limit
     copernicus_method=cf.copernicus_method
     indexation_method=cf.indexation_method
     record_format=cf.record_format
-    outfile_dir=cf.outfile_dir
-    outfig_dir=cf.outfig_dir
+    outdir_cop=cf.outdir_cop
+    outdir_col_plots=cf.outdir_col_plots
+    outfig_dir=outdir_col_plots + cf.wmo
+    if not os.path.exists(outdir_cop):os.mkdir(outdir_cop)
+    if not os.path.exists(outdir_col_plots):os.mkdir(outdir_col_plots)
+    if not os.path.exists(outfig_dir):os.mkdir(outfig_dir)
     
     # applying constraints
     if copernicus_method == 'subset':
@@ -1747,10 +1768,13 @@ if __name__ == '__main__':
         indexation_method=""
         
     # paralellisation option
-    # parallelisation=cf.parallelisation
+    parallelisation=cf.parallelisation
+    i0=cf.grp_deb
+    grp_end=cf.grp_end
+    igrp_2_colocate=cf.igrp_2_colocate
     # debug parameterization:
-    i0,i1=int(sys.argv[2]),int(sys.argv[3])
-    parallelisation = sys.argv[1]
+    #i0,i1=int(sys.argv[2]),int(sys.argv[3])
+    #parallelisation = sys.argv[1]
     
     # Steps_to_run
     steps_2_run=cf.steps_2_run
@@ -1774,6 +1798,9 @@ if __name__ == '__main__':
     
     # standard output log
     verbose=cf.verbose
+    
+    status['stat_step_1']='completed'
+    flush_status_in_file(status_file,status)
 
     if verbose:
         print("Estimate of the number of copernicus points to fetch: {:d}".format(gp_crit['gp_max_x_n']*gp_crit['gp_max_y_n']*gp_crit['gp_max_t_n']))
@@ -1781,39 +1808,46 @@ if __name__ == '__main__':
     
 
     # ### III.b - IN-SITU data selection
-    print("\n#STEP 1: GET IN SITU DATA FROM:",access_type,"...")
-    if 1 in steps_2_run:
+    print("\n#STEP 2: GET IN SITU DATA FROM:",access_type,"...")
+    if 2 in steps_2_run:
         dl=True
+        status['stat_step_2']='started'
     else:
         dl=False
+        status['stat_step_2']='skipped'
+    flush_status_in_file(status_file,status)
         
     if access_type == 'ARGO_DIRECT':
         df_in_situ_ini,ds_in_situ=get_argo_data_from_direct_access(argo_dir,wmo,workflow_name,dl=dl)
     if access_type == 'ARGO_CERBERE':
         df_in_situ_ini,ds_in_situ=get_argo_data_from_cerbere_access(cerbere_dir,wmo,workflow_name,dl=dl)
     if access_type == 'ARGO_INDEX':
+        # When access_type is ARGO_INDEX, no ds is output as it is not intended to create and draw for the whole index.
+        # Additionnaly, only the index is used, which means no data is read. If reading was required, this would mean opening
+        # a fair number of files.
         df_in_situ_ini=get_argo_data_from_index(argo_dir,workflow_name,dl=dl)
         
-    if 1 in steps_2_run:
+    if 2 in steps_2_run:
         print("...completed")
+        status['stat_step_2']='completed'
     else:
         print("...skipped, data read from local repository")
+    flush_status_in_file(status_file,status)
 
-
-    # ### III.b - Define needed datasets and variables for Chlorophyll-A
-    print("\n#STEP 2: GET WORKFLOW COPERNICUS DATASETS AND VAR for WORFLOW :",workflow_name,"...")
-    l_dataset,d_dataset_var=get_workflow_dataset_and_var(workflow_name)
-    print("...completed")
 
     # ### III.c - spatial resolution and boundaries of the copernicus datasets
     print("\n#STEP 3: GET COPERNICUS DATASETS SPATIO-TEMPORAL RESOLUTION ...")
+    status['stat_step_3']='started'
+    flush_status_in_file(status_file,status)
     l_dataset_stf=get_resolution(workflow_name,cache_dir,cache_copernicus_resolution_file,clear_cache=clear_cache_copernicus_resolution,verbose=verbose)
     if not clear_cache_copernicus_resolution:
         print("...completed, resolution downloaded from copernicus")
     else:
         print("...completed, resolution read from cache file")
+    status['stat_step_3']='completed'
+    flush_status_in_file(status_file,status)
 
-
+    
     # Initialise the performance log file header
     line2write="date;location;group_crit;dataset_id;copernicus_method;record_format;cycle_step;" +\
                "execution_time[s];spatial_extension[square_degrees];temporal_extension[days];cache file size[B]"
@@ -1838,44 +1872,64 @@ if __name__ == '__main__':
         file.close()
 
     # ### III.d - group extraction by geographical criterion
-
-    #for dataset_id in l_dataset:
-    for dataset_id in [l_dataset[0]]:
+    status_downloading_colocated_data_percent={}
+    for dataset_id in l_dataset:
+    #for dataset_id in [l_dataset[0]]:
+        i_dataset_stf=l_dataset_stf[dataset_id]
+        
+        outfile_dir=outdir_cop + workflow_name + "_" + cf.l_dataset_short_name[dataset_id] + "/"
+        if not os.path.exists(outfile_dir):os.mkdir(outfile_dir)
         
         print("\n#STEP 4: GET REMAINING IN-SITU DATA TO COLOCATE FROM CACHE INDEX OF ALREADY LOCALLY DOWNLOADED COPERNICUS DATA ...")
         # Test the existence of an index-cache file and if it exists, assess the existence of already downloaded data
         if 4 in steps_2_run:
-            df_to_colocate,colocated_files =get_data_to_colocate(df_in_situ_ini,dataset_id,l_dataset_stf[dataset_id],
+            status['stat_step_4']='started'
+            flush_status_in_file(status_file,status)
+            df_to_colocate,colocated_files =get_data_to_colocate(df_in_situ_ini,dataset_id,i_dataset_stf,
                                                 delta_px,cache_copernicus_downloaded_data_index,verbose=verbose,log4debug=log4debug,
                                                 log_file_col_1=log_file_col_1_prefix + dataset_id + ".csv",log_file_col_2=log_file_col_2_prefix + dataset_id + ".csv")
+            status['stat_step_4']='completed'
+            flush_status_in_file(status_file,status)
             print("...completed")
         else:
+            
             df_to_colocate=df_in_situ_ini
+            status['stat_step_4']='skipped'
+            flush_status_in_file(status_file,status)
             print("...skipped")
         
         # group observation to colocate in spatio-temporal medium cubes
         print("\n#STEP 5: CREATE GROUPS OF IN-SITU OBSERVATIONS USING CLOSE-BY IN SPACE AND TIME CRITERIA ...")
-        if (5 in steps_2_run) or (not os.path.exists(cache_group_of_obs_prefix + dataset_id + ".pkl")):
+        if (2 in steps_2_run) or (4 in steps_2_run) or (5 in steps_2_run) or (not os.path.exists(cache_group_of_obs_prefix + dataset_id + ".pkl")):
             stime=time.time()
+            status['stat_step_5']='started'
+            flush_status_in_file(status_file,status)
             
-            group_of_obs,group_of_obs_too_old,group_of_obs_too_recent=create_obs_groups(df_to_colocate,gp_crit,l_dataset_stf[dataset_id],
+            group_of_obs,group_of_obs_too_old,group_of_obs_too_recent=create_obs_groups(df_to_colocate,gp_crit,i_dataset_stf,
                                                                                         verbose=verbose,log4debug=log4debug,
                                                                                         log_file_grp=log_file_grp_prefix + dataset_id + ".csv")
             print('Execution time: {0:.1f} s'.format(time.time()-stime))
             # For debug purpose: save variable 
             with open(cache_group_of_obs_prefix + dataset_id + ".pkl", 'wb') as file:
                 pickle.dump(group_of_obs, file)
+            status['stat_step_5']='completed'
+            flush_status_in_file(status_file,status)
             print("...completed")
         else:
-            print("...skipped, reading from saved variable ...")
+            
             with open(cache_group_of_obs_prefix  + dataset_id + ".pkl", 'rb') as file:
                 group_of_obs = pickle.load(file)
-            print("...completed")
-        
+            
+            status['stat_step_5']='skipped'
+            flush_status_in_file(status_file,status)
+            print("...skipped, read from saved variable ...")
+            
         
         
         print("\n#STEP 6: DOWNLOAD COPERNICUS DATA USING ", parallelisation, " parallelisation method.")
-
+        status['stat_step_6']='started'
+        status['stat_step_6_' + dataset_id]="started"
+        
         print("\n Workflow {0:s}; dataset {1:s} ".format(workflow_name,dataset_id))
         print("Variables to extract: ",d_dataset_var[dataset_id])
 
@@ -1887,61 +1941,65 @@ if __name__ == '__main__':
             dat_cop=ds_cop['time']
 
         
-        if not os.path.exists(outfile_dir):
-            os.mkdir(outfile_dir)
-        
         start = time.perf_counter()
 
         
         if parallelisation == 'mpProcess':
             pr={}
         if parallelisation == 'mpAsync':
-            pool = Pool()
+            # define the number of core to use.
+            # Here, we keep 2 cores for other works
+            nb_processes=max(1,mp.cpu_count()-2)
+            pool = Pool(processes=nb_processes)
             res={}
-        if parallelisation == 'dask':
-            client = LocalCluster().get_client()
-            res=[]
+        # if parallelisation == 'dask':
+            # client = LocalCluster().get_client()
+            # res=[]
         
         n_obs_group=len(group_of_obs)
         
-        group_range=range(n_obs_group)
-        #group_range=range(i0,i1)
+        if np.size(igrp_2_colocate)>0:
+            group_range=igrp_2_colocate
+        else:
+            if grp_end==-1: 
+                i1=n_obs_group
+            else:
+                i1=min(grp_end,n_obs_group)
+                #print(i1,grp_end,n_obs_group)
+            group_range=range(i0,i1)
         
+        #print("group_range=",group_range)
+        n_group_range=len(group_range)
+        
+        i=-1
         for i_obs_group in group_range:
-            
-            #print("i_obs_group=",i_obs_group)
+            i=i+1
             
             if parallelisation == 'no':
                 print("\n i_obs_group/n_obs_group = ",i_obs_group+1,"/",n_obs_group, " no parallelisation")
                 get_copernicus_data_for_a_group_of_obs(dataset_id,d_dataset_var,i_obs_group,group_of_obs[i_obs_group],df_to_colocate,
-                                           l_dataset_stf[dataset_id],delta_px,outfile_dir,cache_copernicus_downloaded_data_index,
+                                           i_dataset_stf,delta_px,outfile_dir,cache_copernicus_downloaded_data_index,
                                            copernicus_method,indexation_method,record_format,log_file_cop,analysis_date,
-                                           location,gp_crit,verbose=verbose)
+                                           location,gp_crit,spa_lim,tim_lim,verbose=verbose)
             if parallelisation == 'mpProcess':
-                if (i_obs_group%100 == 0) :print("\n i_obs_group/n_obs_group = ",i_obs_group+1,"/",n_obs_group, " mp parallelisation active - method process")
+                if (i%100 == 0) :print("\n i_obs_group/n_obs_group = ",i_obs_group+1,"/",n_obs_group, " mp parallelisation active - method process")
                 pr[i_obs_group]=mp.Process(target=get_copernicus_data_for_a_group_of_obs,
                                        args=(dataset_id,d_dataset_var,i_obs_group,group_of_obs[i_obs_group],df_to_colocate,
-                                       l_dataset_stf[dataset_id],delta_px,outfile_dir,cache_copernicus_downloaded_data_index,
+                                       i_dataset_stf,delta_px,outfile_dir,cache_copernicus_downloaded_data_index,
                                        copernicus_method,indexation_method,record_format,log_file_cop,analysis_date,
-                                       location,gp_crit,verbose))
+                                       location,gp_crit,spa_lim,tim_lim,verbose))
 
                 pr[i_obs_group].start()
                 
             if parallelisation == 'mpAsync':
-                if (i_obs_group%100 == 0) :print("\n i_obs_group/n_obs_group = ",i_obs_group+1,"/",n_obs_group, " mp parallelisation active - method async")
+                if (i%100 == 0) :print("\n i_obs_group/n_obs_group = ",i_obs_group+1,"/",n_obs_group, " mp parallelisation active - method async")
                 res[i_obs_group] = pool.apply_async(get_copernicus_data_for_a_group_of_obs, [dataset_id,d_dataset_var,i_obs_group,group_of_obs[i_obs_group],
-                                                                                             df_to_colocate,l_dataset_stf[dataset_id],delta_px,outfile_dir,
+                                                                                             df_to_colocate,i_dataset_stf,delta_px,outfile_dir,
                                                                                              cache_copernicus_downloaded_data_index,copernicus_method,
                                                                                              indexation_method,record_format,log_file_cop,analysis_date,
-                                                                                             location,gp_crit,verbose])
-
-            if parallelisation == 'dask':
-                if (i_obs_group%100 == 0) :print("\n i_obs_group/n_obs_group = ",i_obs_group+1,"/",n_obs_group, " dask parallelisation active")
-                res=client.submit(get_copernicus_data_for_a_group_of_obs,dataset_id,d_dataset_var,i_obs_group,group_of_obs[i_obs_group],df_to_colocate,
-                                   l_dataset_stf[dataset_id],delta_px,outfile_dir,cache_copernicus_downloaded_data_index,
-                                   copernicus_method,indexation_method,record_format,log_file_cop,analysis_date,
-                                   location,gp_crit,verbose)
+                                                                                             location,gp_crit,spa_lim,tim_lim,verbose])
         
+        i=0
         for i_obs_group in group_range:
             
             if parallelisation == 'mpProcess':
@@ -1950,17 +2008,30 @@ if __name__ == '__main__':
             if parallelisation == 'mpAsync':
                 #print(res[i_obs_group])
                 ans = res[i_obs_group].get(timeout=600)
+
+            if (i%10==0):
+                status_downloading_colocated_data_percent[dataset_id]=100*i/n_group_range
+                
+                status['stat_step_6_' + dataset_id + "_percent"]="{:.1f} %".format(status_downloading_colocated_data_percent[dataset_id])
+                flush_status_in_file(status_file,status)
+            i=i+1
         
-        if parallelisation == 'dask':
-            res = client.gather(res)
-            
+        # if parallelisation == 'dask':
+            # res = client.gather(res)
+        
+        status['stat_step_6_' + dataset_id + "_percent"]="100 %"
+        status['stat_step_6_' + dataset_id]="finished"
+        flush_status_in_file(status_file,status)
         finish = time.perf_counter()
         print(f'It took {finish-start:.3f} second(s) to finish')
-        
-        
+
+    status['stat_step_6']="finished"
+    flush_status_in_file(status_file,status)
+    
+    for dataset_id in l_dataset:
         print("\n#STEP 7: EXTRACT MINI-CUBES around observations...")
         if (7 in steps_2_run) and (access_type != 'ARGO_INDEX'):
-            colocated_data=get_copernicus_mini_cubes(workflow_name,df_in_situ_ini,ds_in_situ,dataset_id,l_dataset_stf[dataset_id],delta_px,outfile_dir,cache_copernicus_downloaded_data_index,d_dataset_var,verbose=verbose)
+            colocated_data=get_copernicus_mini_cubes(workflow_name,df_in_situ_ini,ds_in_situ,dataset_id,i_dataset_stf,delta_px,outfile_dir,cache_copernicus_downloaded_data_index,d_dataset_var,verbose=verbose)
         else:
             if (7 in steps_2_run) and (access_type == 'ARGO_INDEX'):
                 print("ERROR: DO NOT EXTRACT MINI-CUBES FOR THE WHOLE INDEX, please")
@@ -1970,7 +2041,7 @@ if __name__ == '__main__':
         
         if (8 in steps_2_run) & (7 in steps_2_run):
             
-            for i_obs in range(143,415):
+            for i_obs in range(144,147):
                 #obs point:
                 ds_iobs=ds_in_situ.isel(prof=i_obs)
                 #read obs coordinates:
@@ -2086,7 +2157,7 @@ if __name__ == '__main__':
                 plt.savefig(fig_name_prefix + ".png", dpi=200)
                 pickle.dump(fig, open(fig_name_prefix + ".pkl", 'wb'))
                 
-                #plt.show()
+                plt.show()
                 plt.close()
                 
                 # To see the figures in interactive mode:
