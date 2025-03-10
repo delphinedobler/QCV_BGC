@@ -1,3 +1,4 @@
 copernicumarine >=2.0.1
-dask[distributed]
+netCDF4
+matplotlib
 portalocker
