@@ -62,24 +62,36 @@ def secure_write_log_files_with_parallel_access(log_file_path,line2write):
             locked=True
         nb_tries=nb_tries+1
 
-def flush_status_in_file(log_file_path,dictionary):
+def flush_status_in_file(status_file,dictionary,key="",value=""):
     """
     Writes a dictionary content in an ascii file and handle concurrent access to the file 
     (e.g. in case of parallelization)
 
     Parameters
     ----------
-    log_file_path : str
+    status_file : str
         Full path name of the ascii file to modify
     dictionary : dictionary
         values must be strings
+    key (optional) : string
+        key to add or modify to the dictionary
+    value (optional): string
+        value associated to key
+        
+    Returns
+    -------
+    dictionary : dictionary
 
     """
+    #Add the value to key if in arguments
+    if key!="":
+        dictionary[key]=value
+        
     locked=True
     nb_tries=0
     while (locked == True) and (nb_tries < 100):
         try:
-            file = open(log_file_path, 'w')
+            file = open(status_file, 'w')
             portalocker.lock(file, portalocker.LockFlags.EXCLUSIVE)
             for key,value in dictionary.items():
                 file.write(f"{key}:{value}\n")
@@ -89,6 +101,8 @@ def flush_status_in_file(log_file_path,dictionary):
         except:
             locked=True
         nb_tries=nb_tries+1
+        
+    return dictionary
     
 
 def get_cms_data(did,var,lonm,lonp,latm,latp,datm,datp,zm,zp,outd,outf):
@@ -375,7 +389,7 @@ def get_dac_from_meta_index(argo_dir,wmo):
 
 def get_argo_data_from_direct_access(argo_dir,wmo,workflow_name,dl=True):
     """
-    This function optionnaly downloads Argo data multi-profile file from the web and/or
+    This function optionally downloads Argo data multi-profile file from the web and/or
     returns a dataframe and a dataset with all the necessary information regarding
     colocation
 
@@ -387,7 +401,7 @@ def get_argo_data_from_direct_access(argo_dir,wmo,workflow_name,dl=True):
         the wmo id of the float
     workflow_name : string
         the name of the workflow (only 'chl' is supported so far)
-    dl (optionnal): boolean (set to True by default)
+    dl (optional): boolean (set to True by default)
         if set to True, Argo data are collected on the GDAC at https://data-argo.ifremer.fr/
         if set to False, a local copy should already exists.
     
@@ -453,7 +467,8 @@ def get_argo_data_from_direct_access(argo_dir,wmo,workflow_name,dl=True):
                 POSITION_QC=(["prof"], position_qc),
                 PRES=(["prof", "levels"], PRES),
                 CHLA=(["prof", "levels"], CHLA,{'units':ds.variables['CHLA'].units}),
-                CHLA_QC=(["prof", "levels"], CHLA_QC),       
+                CHLA_QC=(["prof", "levels"], CHLA_QC),
+                
             ),
             coords=dict(
                 prof=prof,
@@ -484,7 +499,7 @@ def get_argo_data_from_direct_access(argo_dir,wmo,workflow_name,dl=True):
 
 def get_argo_data_from_cerbere_access(cerbere_dir,wmo,workflow_name,dl=False):
     """
-    This function optionnaly copies cerbere data files from xxx (not yet plugged) and/or
+    This function optionally copies cerbere data files from xxx (not yet plugged) and/or
     returns a dataframe and a dataset with all the necessary information regarding
     colocation
 
@@ -496,7 +511,7 @@ def get_argo_data_from_cerbere_access(cerbere_dir,wmo,workflow_name,dl=False):
         the wmo id of the float
     workflow_name : string
         the name of the workflow (only 'chl' is supported so far)
-    dl (optionnal) : boolean (set to False by default)
+    dl (optional) : boolean (set to False by default)
         if set to True, cerbere data are collected on xxx (not yet plugged)
         if set to False, a local copy should already exists.
     
@@ -549,7 +564,8 @@ def get_argo_data_from_cerbere_access(cerbere_dir,wmo,workflow_name,dl=False):
                 POSITION_QC=(["prof"], position_qc),
                 PRES=(["prof", "levels"], PRES),
                 CHLA=(["prof", "levels"], CHLA,{'units':ds.variables['CHLA'].units}),
-                CHLA_QC=(["prof", "levels"], CHLA_QC),            
+                CHLA_QC=(["prof", "levels"], CHLA_QC),
+                
             ),
             coords=dict(
                 prof=prof,
@@ -581,9 +597,9 @@ def get_argo_data_from_cerbere_access(cerbere_dir,wmo,workflow_name,dl=False):
 # ## II.d - get all observations for one workflow
 
 
-def get_argo_data_from_index(argo_dir,workflow_name,dl=True):
+def get_argo_data_from_index(argo_dir,workflow_name,dl=True,verbose=False):
     """
-    This function optionnaly downloads Argo data bio-profile index file from the web and/or
+    This function optionally downloads Argo data bio-profile index file from the web and/or
     returns a dataframe with all the necessary information regarding
     colocation
 
@@ -593,7 +609,7 @@ def get_argo_data_from_index(argo_dir,workflow_name,dl=True):
         the local repository where argo data files are stored
     workflow_name : string
         the name of the workflow (only 'chl' is supported so far)
-    dl (optionnal) : boolean (set to True by default)
+    dl (optional) : boolean (set to True by default)
         if set to True, Argo bio-profile index file is collected the GDAC at https://data-argo.ifremer.fr/
         if set to False, a local copy should already exists.
     
@@ -612,7 +628,7 @@ def get_argo_data_from_index(argo_dir,workflow_name,dl=True):
         print("Downloading in-situ data from ", URL)
         
     
-    print("Reading in-situ data from ", BIO_Index_file)
+    if verbose: print("Reading in-situ data from ", BIO_Index_file)
     BIO_Index=pd.read_csv(BIO_Index_file,header=8,sep=",")
 
     # Removing lines with incomplete coordinates:
@@ -695,7 +711,7 @@ def compute_distance(lonA_deg=0,latA_deg=0,lonB_deg=1,latB_deg=0,verbose=False):
         
     latB_deg : float or float array
         the latitude of point B or points B array in degrees
-    verbose (optionnal): boolean (set to False by default)
+    verbose (optional): boolean (set to False by default)
         if set to True: additionnal printing are made in the standard output
         else: no print
     
@@ -817,7 +833,7 @@ def get_bbox_from_df(df,i_dataset_stf,delta_px,verbose=False):
         keys and values should be as created by the get_resolution function.
     delta_px : dictionary
         as defined in the configuration file. keys are 'x', 'y' and 't' strings and values are integers
-    verbose (optionnal) : boolean (set to False by default)
+    verbose (optional) : boolean (set to False by default)
         if set to True: additionnal printing are made in the standard output
         else: no print
     
@@ -993,14 +1009,14 @@ def get_data_to_colocate(df,dataset_id,i_dataset_stf,delta_px,cache_copernicus_d
         complete filename with path where the cache file is stored. The file should include the following fields:
         'dataset_id': 'str', 'date_min': 'str', 'date_max': 'str', 'lat_min' : 'float','lat_max':'float',
         'lon_west' : 'float','lon_east':'float', 'cross_180' : 'int','file_name':'str','i_group':'int'
-    verbose (optionnal) : boolean (set to False by default)
+    verbose (optional) : boolean (set to False by default)
         if set to True: additionnal printing are made in the standard output
         else: no print
-    log4debug (optionnal) : boolean (set to False by default)
+    log4debug (optional) : boolean (set to False by default)
         if set to True, create additionnal log files, used to test the robustness of the function.
-    log_file_col_1 (optionnal) : string (set to "" by default)
+    log_file_col_1 (optional) : string (set to "" by default)
         complete filename with path where the input df data will be stored if log4debug is set to True
-    log_file_col_2 (optionnal) : string (set to "" by default)
+    log_file_col_2 (optional) : string (set to "" by default)
         complete filename with path where the results of search in cache will be stored if log4debug is set to True
     
     Returns
@@ -1173,12 +1189,12 @@ def create_obs_groups(df_in_situ_ini,gp_crit,i_dataset_stf,verbose=False,log4deb
         with keys: spatio-temporal feature (resolution, limits) 
         and values: either floats for latitude and longitude or str for dates
         keys and values should be as created by the get_resolution function.
-    verbose (optionnal) : boolean (set to False by default)
+    verbose (optional) : boolean (set to False by default)
         if set to True: additionnal printing are made in the standard output
         else: no print
-    log4debug (optionnal) : boolean (set to False by default)
+    log4debug (optional) : boolean (set to False by default)
         if set to True, create additionnal log files, used to test the robustness of the function.
-    log_file_grp (optionnal) : string (set to "" by default)
+    log_file_grp (optional) : string (set to "" by default)
         complete filename with path where the results of grouping will be stored if log4debug is set to True
     
     Returns
@@ -1389,7 +1405,7 @@ def get_copernicus_data_for_a_group_of_obs(dataset_id,d_dataset_var,i_obs_group,
         limit in square degrees for the spatial area covered by the group of observation above which the download is not performed (secure if issue in groups)
     tim_lim : float
         limit in days for the time span covered by the group of observation above which the download is not performed (secure if issue in groups)
-    verbose (optionnal) : boolean (set to False by default)
+    verbose (optional) : boolean (set to False by default)
         if set to True: additionnal printing are made in the standard output
         else: no print
     
@@ -1596,7 +1612,7 @@ def get_copernicus_mini_cubes(workflow_name,df_obs,ds_obs,dataset_id,i_dataset_s
         dictionary with keys: string from l_dataset
                          values: string array with the variables to extract from the dataset.
         as defined in the d_dataset_var output of get_workflow_dataset_and_var function
-    verbose (optionnal) : boolean (set to False by default)
+    verbose (optional) : boolean (set to False by default)
         if set to True: additionnal printing are made in the standard output
         else: no print
     
@@ -1614,7 +1630,7 @@ def get_copernicus_mini_cubes(workflow_name,df_obs,ds_obs,dataset_id,i_dataset_s
     colocated_copernicus_data={}
     colocated_insitu_data={}
     
-    # For each observation in df_obs, find the correponding line in the cache index and the corresponding copernicus NetCDF local copy.
+    # For each observation in df_obs, find the corresponding line in the cache index and the corresponding copernicus NetCDF local copy.
     df_to_colocate,colocated_files = get_data_to_colocate(df_obs,dataset_id,i_dataset_stf,delta_px,cache_copernicus_downloaded_data_index)
     
     delta_lon=i_dataset_stf['reso_lon_deg']*delta_px['x']
@@ -1717,18 +1733,7 @@ if __name__ == '__main__':
     none
     
     """
-    # Initialise the status codes
-    status_file='status.txt'
-    status={}
-    status['stat_step_1']='Not started'
-    status['stat_step_2']='Not started'
-    status['stat_step_3']='Not started'
-    status['stat_step_4']='Not started'
-    status['stat_step_5']='Not started'
-    status['stat_step_6']='Not started'
-    status['stat_step_7']='Not started'
-    status['stat_step_8']='Not started'
-    flush_status_in_file(status_file,status)
+    
     
 
     print("\n#STEP 1: READING CONFIGURATION") 
@@ -1795,8 +1800,28 @@ if __name__ == '__main__':
     # standard output log
     verbose=cf.verbose
     
-    status['stat_step_1']='completed'
-    flush_status_in_file(status_file,status)
+    
+    # Initialise the status codes
+    status_file=cf.status_file
+    if os.path.exists(status_file):
+        os.remove(status_file)
+    ST_notstarted='0'
+    ST_started='1'
+    ST_completed='2' 
+    ST_skipped='6'
+    ST_error='404'
+    
+    status={}
+    status['stat_step_1']=ST_completed
+    status['stat_step_2']=ST_notstarted
+    status['stat_step_3']=ST_notstarted
+    status['stat_step_4']=ST_notstarted
+    status['stat_step_5']=ST_notstarted
+    status['stat_step_6']=ST_notstarted
+    status['stat_step_7']=ST_notstarted
+    status['stat_step_8']=ST_notstarted
+    status=flush_status_in_file(status_file,status)
+
 
     if verbose:
         print("Estimate of the number of copernicus points to fetch: {:d}".format(gp_crit['gp_max_x_n']*gp_crit['gp_max_y_n']*gp_crit['gp_max_t_n']))
@@ -1807,10 +1832,10 @@ if __name__ == '__main__':
     print("\n#STEP 2: GET IN SITU DATA FROM:",access_type,"...")
     if 2 in steps_2_run:
         dl=True
-        status['stat_step_2']='started'
+        status['stat_step_2']=ST_started
     else:
         dl=False
-        status['stat_step_2']='skipped'
+        status['stat_step_2']=ST_skipped
     flush_status_in_file(status_file,status)
         
     if access_type == 'ARGO_DIRECT':
@@ -1825,7 +1850,7 @@ if __name__ == '__main__':
         
     if 2 in steps_2_run:
         print("...completed")
-        status['stat_step_2']='completed'
+        status['stat_step_2']=ST_completed
     else:
         print("...skipped, data read from local repository")
     flush_status_in_file(status_file,status)
@@ -1833,21 +1858,20 @@ if __name__ == '__main__':
 
     # ### III.c - spatial resolution and boundaries of the copernicus datasets
     print("\n#STEP 3: GET COPERNICUS DATASETS SPATIO-TEMPORAL RESOLUTION ...")
-    status['stat_step_3']='started'
+    status['stat_step_3']=ST_started
     flush_status_in_file(status_file,status)
     l_dataset_stf=get_resolution(workflow_name,cache_dir,cache_copernicus_resolution_file,clear_cache=clear_cache_copernicus_resolution,verbose=verbose)
     if not clear_cache_copernicus_resolution:
         print("...completed, resolution downloaded from copernicus")
     else:
         print("...completed, resolution read from cache file")
-    status['stat_step_3']='completed'
+    status['stat_step_3']=ST_completed
     flush_status_in_file(status_file,status)
 
     
     # Initialise the performance log file header
     line2write="date;location;group_crit;dataset_id;copernicus_method;record_format;cycle_step;" +\
                "execution_time[s];spatial_extension[square_degrees];temporal_extension[days];cache file size[B]"
-    print(line2write)
     file = open(log_file_cop, 'a')
     file.write(line2write + '\n')
     file.close()
@@ -1879,27 +1903,25 @@ if __name__ == '__main__':
         print("\n#STEP 4: GET REMAINING IN-SITU DATA TO COLOCATE FROM CACHE INDEX OF ALREADY LOCALLY DOWNLOADED COPERNICUS DATA ...")
         # Test the existence of an index-cache file and if it exists, assess the existence of already downloaded data
         if 4 in steps_2_run:
-            status['stat_step_4']='started'
-            flush_status_in_file(status_file,status)
+            status=flush_status_in_file(status_file,status,'stat_step_4',ST_started)
+            status=flush_status_in_file(status_file,status,'stat_step_4_'+ dataset_id,ST_started)
             df_to_colocate,colocated_files =get_data_to_colocate(df_in_situ_ini,dataset_id,i_dataset_stf,
                                                 delta_px,cache_copernicus_downloaded_data_index,verbose=verbose,log4debug=log4debug,
                                                 log_file_col_1=log_file_col_1_prefix + dataset_id + ".csv",log_file_col_2=log_file_col_2_prefix + dataset_id + ".csv")
-            status['stat_step_4']='completed'
-            flush_status_in_file(status_file,status)
+            status=flush_status_in_file(status_file,status,'stat_step_4_'+ dataset_id,ST_completed)
             print("...completed")
         else:
             
             df_to_colocate=df_in_situ_ini
-            status['stat_step_4']='skipped'
-            flush_status_in_file(status_file,status)
+            status=flush_status_in_file(status_file,status,'stat_step_4_'+ dataset_id,ST_skipped)
             print("...skipped")
         
         # group observation to colocate in spatio-temporal medium cubes
         print("\n#STEP 5: CREATE GROUPS OF IN-SITU OBSERVATIONS USING CLOSE-BY IN SPACE AND TIME CRITERIA ...")
         if (2 in steps_2_run) or (4 in steps_2_run) or (5 in steps_2_run) or (not os.path.exists(cache_group_of_obs_prefix + dataset_id + ".pkl")):
             stime=time.time()
-            status['stat_step_5']='started'
-            flush_status_in_file(status_file,status)
+            status=flush_status_in_file(status_file,status,'stat_step_5',ST_started)
+            status=flush_status_in_file(status_file,status,'stat_step_5_'+ dataset_id,ST_started)
             
             group_of_obs,group_of_obs_too_old,group_of_obs_too_recent=create_obs_groups(df_to_colocate,gp_crit,i_dataset_stf,
                                                                                         verbose=verbose,log4debug=log4debug,
@@ -1908,23 +1930,22 @@ if __name__ == '__main__':
             # For debug purpose: save variable 
             with open(cache_group_of_obs_prefix + dataset_id + ".pkl", 'wb') as file:
                 pickle.dump(group_of_obs, file)
-            status['stat_step_5']='completed'
-            flush_status_in_file(status_file,status)
+            
+            status=flush_status_in_file(status_file,status,'stat_step_5_'+ dataset_id,ST_completed)
             print("...completed")
         else:
             
             with open(cache_group_of_obs_prefix  + dataset_id + ".pkl", 'rb') as file:
                 group_of_obs = pickle.load(file)
             
-            status['stat_step_5']='skipped'
-            flush_status_in_file(status_file,status)
+            status=flush_status_in_file(status_file,status,'stat_step_5_'+ dataset_id,ST_skipped)
             print("...skipped, read from saved variable ...")
             
         
         
         print("\n#STEP 6: DOWNLOAD COPERNICUS DATA USING ", parallelisation, " parallelisation method.")
-        status['stat_step_6']='started'
-        status['stat_step_6_' + dataset_id]="started"
+        status=flush_status_in_file(status_file,status,'stat_step_6',ST_started)
+        status=flush_status_in_file(status_file,status,'stat_step_6_'+ dataset_id,ST_started)
         
         print("\n Workflow {0:s}; dataset {1:s} ".format(workflow_name,dataset_id))
         print("Variables to extract: ",d_dataset_var[dataset_id])
@@ -2008,34 +2029,52 @@ if __name__ == '__main__':
             if (i%10==0):
                 status_downloading_colocated_data_percent[dataset_id]=100*i/n_group_range
                 
-                status['stat_step_6_' + dataset_id + "_percent"]="{:.1f} %".format(status_downloading_colocated_data_percent[dataset_id])
-                flush_status_in_file(status_file,status)
+                completion_rate="{:.1f} %".format(status_downloading_colocated_data_percent[dataset_id])
+                status=flush_status_in_file(status_file,status,'stat_step_6_' + dataset_id + "_percent",completion_rate)
             i=i+1
         
         # if parallelisation == 'dask':
             # res = client.gather(res)
         
-        status['stat_step_6_' + dataset_id + "_percent"]="100 %"
-        status['stat_step_6_' + dataset_id]="finished"
-        flush_status_in_file(status_file,status)
+        status=flush_status_in_file(status_file,status,'stat_step_6_' + dataset_id + "_percent","100 %")
+        status=flush_status_in_file(status_file,status,'stat_step_6_' + dataset_id,ST_completed)
         finish = time.perf_counter()
         print(f'It took {finish-start:.3f} second(s) to finish')
 
-    status['stat_step_6']="finished"
-    flush_status_in_file(status_file,status)
+    if 4 in steps_2_run:
+        status=flush_status_in_file(status_file,status,'stat_step_4',ST_completed)
+    status=flush_status_in_file(status_file,status,'stat_step_5',ST_completed)
+    status=flush_status_in_file(status_file,status,'stat_step_6',ST_completed)
+
     
     for dataset_id in l_dataset:
         print("\n#STEP 7: EXTRACT MINI-CUBES around observations...")
+        print(dataset_id)
+        
+        outfile_dir=outdir_cop + workflow_name + "_" + cf.l_dataset_short_name[dataset_id] + "/"
+        if not os.path.exists(outfile_dir):os.mkdir(outfile_dir)
+        
         if (7 in steps_2_run) and (access_type != 'ARGO_INDEX'):
+            status=flush_status_in_file(status_file,status,'stat_step_7',ST_started)
+            status=flush_status_in_file(status_file,status,'stat_step_7_' + dataset_id,ST_started)
             colocated_data=get_copernicus_mini_cubes(workflow_name,df_in_situ_ini,ds_in_situ,dataset_id,i_dataset_stf,delta_px,outfile_dir,cache_copernicus_downloaded_data_index,d_dataset_var,verbose=verbose)
+            status=flush_status_in_file(status_file,status,'stat_step_7_' + dataset_id,ST_completed)
+
         else:
             if (7 in steps_2_run) and (access_type == 'ARGO_INDEX'):
                 print("ERROR: DO NOT EXTRACT MINI-CUBES FOR THE WHOLE INDEX, please")
-            print(" ... skipped")
+                status=flush_status_in_file(status_file,status,'stat_step_7_' + dataset_id,ST_error)
+                status=flush_status_in_file(status_file,status,'stat_step_7',ST_error)
+            else:
+                print(" ... skipped")
+                status=flush_status_in_file(status_file,status,'stat_step_7_' + dataset_id,ST_skipped)
+                
                 
         print("\n#STEP 8: display observations...")
         
-        if (8 in steps_2_run) & (7 in steps_2_run):
+        if (8 in steps_2_run) & (7 in steps_2_run) & (access_type != 'ARGO_INDEX'):
+            status=flush_status_in_file(status_file,status,'stat_step_8',ST_started)
+            status=flush_status_in_file(status_file,status,'stat_step_8_' + dataset_id,ST_started)
             
             n_obs=len(colocated_data['copernicus'].keys())
             
@@ -2120,14 +2159,15 @@ if __name__ == '__main__':
                 
                 fig = plt.figure()
                 ax = fig.add_subplot(projection='3d')
-                if len(i_notnan[0])==0:
+                if (len(i_notnan[0])==0) | (cop_var_name !='CHL'):
                     scat1=ax.scatter(obs_lon, obs_lat, obs_t,c='black',s=30)
                 else:
-                    scat1=ax.scatter(obs_lon, obs_lat, obs_t, c=obs_chl, cmap='jet', vmin=cop_var_MIN, vmax=cop_var_MAX,s=30)
-                scat2=ax.scatter(COP_lon, COP_lat, COP_t, c=COP_var, cmap='jet', vmin=cop_var_MIN, vmax=cop_var_MAX,s=4)
+                    scat1=ax.scatter(obs_lon, obs_lat, obs_t, c=obs_chl, cmap='jet', vmin=np.nanmin(COP_var), vmax=np.nanmax(COP_var),s=30)
+                #scat2=ax.scatter(COP_lon, COP_lat, COP_t, c=COP_var, cmap='jet', vmin=cop_var_MIN, vmax=cop_var_MAX,s=4)
+                scat2=ax.scatter(COP_lon, COP_lat, COP_t, c=COP_var, cmap='jet', vmin=np.nanmin(COP_var), vmax=np.nanmax(COP_var),s=4)
                 plt.colorbar(scat2,pad=0.15,label="copernicus " + cop_var_name + "[" + cop_var_UNIT + "]")
                 plt.title("Argo float wmo id " + wmo + " cycle " + "{:d}".format(obs_cyci) + obs_diri + \
-                          "\n{0:s} , {1:.3f}°N, {2:.3f}°E, at {3:.1f}dbar \n value = {4:.2f} [{5:s}]".format(np.datetime_as_string(obs_dati,unit='s'),
+                          "\n{0:s} , {1:.3f}°N, {2:.3f}°E, at {3:.1f}dbar \n In-situ CHLA = {4:.2f} [{5:s}]".format(np.datetime_as_string(obs_dati,unit='s'),
                           obs_lati,obs_loni,obs_prei_notnan[0],obs_chli_notnan[0],obs_var_UNIT))
                 
                 
@@ -2158,3 +2198,22 @@ if __name__ == '__main__':
                 # To see the figures in interactive mode:
                 # figx = pickle.load(open(fig_name_prefix + "pkl", 'rb'))
                 # figx.show() # Show the figure, edit it, etc.!
+                
+            status=flush_status_in_file(status_file,status,'stat_step_8_' + dataset_id,ST_completed)
+        else:
+            if (8 in steps_2_run) and (access_type == 'ARGO_INDEX'):
+                print("ERROR: DO NOT PLOT FOR THE WHOLE INDEX, please")
+                status=flush_status_in_file(status_file,status,'stat_step_8_' + dataset_id,ST_error)
+                status=flush_status_in_file(status_file,status,'stat_step_8',ST_error)
+            else:
+                print(" ... skipped")
+                status=flush_status_in_file(status_file,status,'stat_step_8',ST_skipped)
+                status=flush_status_in_file(status_file,status,'stat_step_8_' + dataset_id,ST_skipped)
+                
+    if (7 in steps_2_run) & (access_type != 'ARGO_INDEX'):
+        status=flush_status_in_file(status_file,status,'stat_step_7',ST_completed)
+    if (8 in steps_2_run) & (access_type != 'ARGO_INDEX'):
+        status=flush_status_in_file(status_file,status,'stat_step_8',ST_completed)
+        
+       
+        
