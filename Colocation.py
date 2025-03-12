@@ -62,7 +62,7 @@ def secure_write_log_files_with_parallel_access(log_file_path,line2write):
             locked=True
         nb_tries=nb_tries+1
 
-def flush_status_in_file(status_file,dictionary,key="",value=""):
+def flush_status_in_file(status_file,key,value):
     """
     Writes a dictionary content in an ascii file and handle concurrent access to the file 
     (e.g. in case of parallelization)
@@ -71,21 +71,33 @@ def flush_status_in_file(status_file,dictionary,key="",value=""):
     ----------
     status_file : str
         Full path name of the ascii file to modify
-    dictionary : dictionary
-        values must be strings
-    key (optional) : string
+    key : string
         key to add or modify to the dictionary
-    value (optional): string
+    value : string
         value associated to key
         
     Returns
     -------
-    dictionary : dictionary
+    none
 
     """
+    
+    status={}
+    # Read previous status values if existing
+    if os.path.exists(status_file):
+        file = open(status_file, 'r')
+        # Read each line in the file
+        for line in file:
+            # Print each line
+            line=line.replace('\n','')
+            line_elt=line.split(":")
+            status[line_elt[0]]=line_elt[1]
+        file.close()
+    
+    
     #Add the value to key if in arguments
     if key!="":
-        dictionary[key]=value
+        status[key]=value
         
     locked=True
     nb_tries=0
@@ -93,7 +105,7 @@ def flush_status_in_file(status_file,dictionary,key="",value=""):
         try:
             file = open(status_file, 'w')
             portalocker.lock(file, portalocker.LockFlags.EXCLUSIVE)
-            for key,value in dictionary.items():
+            for key,value in status.items():
                 file.write(f"{key}:{value}\n")
             portalocker.unlock(file)
             file.close()
@@ -101,9 +113,7 @@ def flush_status_in_file(status_file,dictionary,key="",value=""):
         except:
             locked=True
         nb_tries=nb_tries+1
-        
-    return dictionary
-    
+
 
 def get_cms_data(did,var,lonm,lonp,latm,latp,datm,datp,zm,zp,outd,outf):
     """
@@ -1172,7 +1182,7 @@ def get_data_to_colocate(df,dataset_id,i_dataset_stf,delta_px,cache_copernicus_d
 
 
 
-def create_obs_groups(df_in_situ_ini,gp_crit,i_dataset_stf,verbose=False,log4debug=False,log_file_grp=""):
+def create_obs_groups(df_in_situ_ini,gp_crit,i_dataset_stf,verbose=False,log4debug=False,log_file_grp="",status_file="",dataset_id=""):
     """
     This function creates groups of close-by observations
 
@@ -1196,6 +1206,10 @@ def create_obs_groups(df_in_situ_ini,gp_crit,i_dataset_stf,verbose=False,log4deb
         if set to True, create additionnal log files, used to test the robustness of the function.
     log_file_grp (optional) : string (set to "" by default)
         complete filename with path where the results of grouping will be stored if log4debug is set to True
+    status_file (optional) : string (set to "" by default)
+        pathway to the status file to write completion rate. If equal to "", nothing is written.
+    dataset_id (optional) : string (set to "" by default)
+        dataset_id, only used to write in the status file
     
     Returns
     -------
@@ -1285,6 +1299,7 @@ def create_obs_groups(df_in_situ_ini,gp_crit,i_dataset_stf,verbose=False,log4deb
 
     earth_radius_eq=compute_earth_radius_elliptical(0)
     
+    if status_file!="": flush_status_in_file(status_file,'stat_step_5_' + dataset_id + "_percent","0 %")
     while (len(list_obs_id) > 0) & (i_group<=df_in_situ_ini.shape[0]) :
     #while (len(list_obs_id) > 0) & (i_group<=600) :
 
@@ -1339,9 +1354,14 @@ def create_obs_groups(df_in_situ_ini,gp_crit,i_dataset_stf,verbose=False,log4deb
                 file.close()
                 
         completion_rate=100*(1-len(list_obs_id)/n_elt_ini)
-        if(i_group%100==0):print("i_group={0:d};nb_elt_group={1:d};n_elt_left_to_group={2:d};completion={3:.1f}%".format(i_group,len(i_close_by),len(list_obs_id),completion_rate))
+        if(i_group%100==0):
+            print("i_group={0:d};nb_elt_group={1:d};n_elt_left_to_group={2:d};completion={3:.1f}%".format(i_group,len(i_close_by),len(list_obs_id),completion_rate))
             
-        i_group = i_group + 1  
+        if(i_group%10==0):
+            if status_file!="":flush_status_in_file(status_file,'stat_step_5_' + dataset_id + "_percent", "{:.1f} %".format(completion_rate))
+            
+        i_group = i_group + 1
+    if status_file!="": flush_status_in_file(status_file,'stat_step_5_' + dataset_id + "_percent","100 %")
     if verbose: print(group_of_obs)
         
     return group_of_obs,group_of_obs_too_old,group_of_obs_too_recent
@@ -1736,7 +1756,8 @@ if __name__ == '__main__':
     
     
 
-    print("\n#STEP 1: READING CONFIGURATION") 
+    print("\n#STEP 1: READING CONFIGURATION")
+    start = time.perf_counter()
     import Colocation_cfg as cf
     
     # input data selection
@@ -1811,16 +1832,18 @@ if __name__ == '__main__':
     ST_skipped='6'
     ST_error='404'
     
-    status={}
-    status['stat_step_1']=ST_completed
-    status['stat_step_2']=ST_notstarted
-    status['stat_step_3']=ST_notstarted
-    status['stat_step_4']=ST_notstarted
-    status['stat_step_5']=ST_notstarted
-    status['stat_step_6']=ST_notstarted
-    status['stat_step_7']=ST_notstarted
-    status['stat_step_8']=ST_notstarted
-    status=flush_status_in_file(status_file,status)
+    flush_status_in_file(status_file,'stat_step_1',ST_completed)
+    flush_status_in_file(status_file,'stat_step_2',ST_notstarted)
+    flush_status_in_file(status_file,'stat_step_3',ST_notstarted)
+    flush_status_in_file(status_file,'stat_step_4',ST_notstarted)
+    flush_status_in_file(status_file,'stat_step_5',ST_notstarted)
+    flush_status_in_file(status_file,'stat_step_6',ST_notstarted)
+    flush_status_in_file(status_file,'stat_step_7',ST_notstarted)
+    flush_status_in_file(status_file,'stat_step_8',ST_notstarted)
+    
+    flush_status_in_file(status_file,'stat_step_1_exectime',"{0:.2f} s".format(time.perf_counter()-start))
+    print(f'Execution time: {time.perf_counter()-start:.3f} second(s)')
+    
 
 
     if verbose:
@@ -1830,13 +1853,13 @@ if __name__ == '__main__':
 
     # ### III.b - IN-SITU data selection
     print("\n#STEP 2: GET IN SITU DATA FROM:",access_type,"...")
+    start = time.perf_counter()
     if 2 in steps_2_run:
         dl=True
-        status['stat_step_2']=ST_started
+        flush_status_in_file(status_file,'stat_step_2',ST_started)
     else:
         dl=False
-        status['stat_step_2']=ST_skipped
-    flush_status_in_file(status_file,status)
+        flush_status_in_file(status_file,'stat_step_2',ST_skipped)
         
     if access_type == 'ARGO_DIRECT':
         df_in_situ_ini,ds_in_situ=get_argo_data_from_direct_access(argo_dir,wmo,workflow_name,dl=dl)
@@ -1850,23 +1873,29 @@ if __name__ == '__main__':
         
     if 2 in steps_2_run:
         print("...completed")
-        status['stat_step_2']=ST_completed
+        flush_status_in_file(status_file,'stat_step_2',ST_completed)
     else:
         print("...skipped, data read from local repository")
-    flush_status_in_file(status_file,status)
+    
+    flush_status_in_file(status_file,'stat_step_2_exectime',"{0:.2f} s".format(time.perf_counter()-start))
+    print(f'Execution time: {time.perf_counter()-start:.3f} second(s)')
 
 
     # ### III.c - spatial resolution and boundaries of the copernicus datasets
     print("\n#STEP 3: GET COPERNICUS DATASETS SPATIO-TEMPORAL RESOLUTION ...")
-    status['stat_step_3']=ST_started
-    flush_status_in_file(status_file,status)
+    start = time.perf_counter()
+    flush_status_in_file(status_file,'stat_step_3',ST_started)
+    
     l_dataset_stf=get_resolution(workflow_name,cache_dir,cache_copernicus_resolution_file,clear_cache=clear_cache_copernicus_resolution,verbose=verbose)
     if not clear_cache_copernicus_resolution:
         print("...completed, resolution downloaded from copernicus")
     else:
         print("...completed, resolution read from cache file")
-    status['stat_step_3']=ST_completed
-    flush_status_in_file(status_file,status)
+    
+    flush_status_in_file(status_file,'stat_step_3',ST_completed)
+    flush_status_in_file(status_file,'stat_step_3_exectime',"{0:.2f} s".format(time.perf_counter()-start))
+    print(f'Execution time: {time.perf_counter()-start:.3f} second(s)')
+
 
     
     # Initialise the performance log file header
@@ -1900,52 +1929,61 @@ if __name__ == '__main__':
         outfile_dir=outdir_cop + workflow_name + "_" + cf.l_dataset_short_name[dataset_id] + "/"
         if not os.path.exists(outfile_dir):os.mkdir(outfile_dir)
         
-        print("\n#STEP 4: GET REMAINING IN-SITU DATA TO COLOCATE FROM CACHE INDEX OF ALREADY LOCALLY DOWNLOADED COPERNICUS DATA ...")
+        print("\n#STEP 4-" + cf.l_dataset_short_name[dataset_id] + " : GET REMAINING IN-SITU DATA TO COLOCATE FROM CACHE INDEX OF ALREADY LOCALLY DOWNLOADED COPERNICUS DATA ...")
+        start = time.perf_counter()
         # Test the existence of an index-cache file and if it exists, assess the existence of already downloaded data
         if 4 in steps_2_run:
-            status=flush_status_in_file(status_file,status,'stat_step_4',ST_started)
-            status=flush_status_in_file(status_file,status,'stat_step_4_'+ dataset_id,ST_started)
+            flush_status_in_file(status_file,'stat_step_4',ST_started)
+            flush_status_in_file(status_file,'stat_step_4_'+ dataset_id,ST_started)
             df_to_colocate,colocated_files =get_data_to_colocate(df_in_situ_ini,dataset_id,i_dataset_stf,
                                                 delta_px,cache_copernicus_downloaded_data_index,verbose=verbose,log4debug=log4debug,
                                                 log_file_col_1=log_file_col_1_prefix + dataset_id + ".csv",log_file_col_2=log_file_col_2_prefix + dataset_id + ".csv")
-            status=flush_status_in_file(status_file,status,'stat_step_4_'+ dataset_id,ST_completed)
+            flush_status_in_file(status_file,'stat_step_4_'+ dataset_id,ST_completed)
             print("...completed")
         else:
             
             df_to_colocate=df_in_situ_ini
-            status=flush_status_in_file(status_file,status,'stat_step_4_'+ dataset_id,ST_skipped)
+            flush_status_in_file(status_file,'stat_step_4_'+ dataset_id,ST_skipped)
             print("...skipped")
         
+        flush_status_in_file(status_file,'stat_step_4_' + dataset_id + '_exectime',"{0:.2f} s".format(time.perf_counter()-start))
+        print(f'Execution time: {time.perf_counter()-start:.3f} second(s)')
+        
         # group observation to colocate in spatio-temporal medium cubes
-        print("\n#STEP 5: CREATE GROUPS OF IN-SITU OBSERVATIONS USING CLOSE-BY IN SPACE AND TIME CRITERIA ...")
+        print("\n#STEP 5-" + cf.l_dataset_short_name[dataset_id] + " : CREATE GROUPS OF IN-SITU OBSERVATIONS USING CLOSE-BY IN SPACE AND TIME CRITERIA ...")
+        start = time.perf_counter()
         if (2 in steps_2_run) or (4 in steps_2_run) or (5 in steps_2_run) or (not os.path.exists(cache_group_of_obs_prefix + dataset_id + ".pkl")):
-            stime=time.time()
-            status=flush_status_in_file(status_file,status,'stat_step_5',ST_started)
-            status=flush_status_in_file(status_file,status,'stat_step_5_'+ dataset_id,ST_started)
+
+            flush_status_in_file(status_file,'stat_step_5',ST_started)
+            flush_status_in_file(status_file,'stat_step_5_'+ dataset_id,ST_started)
             
             group_of_obs,group_of_obs_too_old,group_of_obs_too_recent=create_obs_groups(df_to_colocate,gp_crit,i_dataset_stf,
                                                                                         verbose=verbose,log4debug=log4debug,
-                                                                                        log_file_grp=log_file_grp_prefix + dataset_id + ".csv")
-            print('Execution time: {0:.1f} s'.format(time.time()-stime))
+                                                                                        log_file_grp=log_file_grp_prefix + dataset_id + ".csv",
+                                                                                        status_file=status_file,dataset_id=dataset_id)
             # For debug purpose: save variable 
             with open(cache_group_of_obs_prefix + dataset_id + ".pkl", 'wb') as file:
                 pickle.dump(group_of_obs, file)
             
-            status=flush_status_in_file(status_file,status,'stat_step_5_'+ dataset_id,ST_completed)
+            flush_status_in_file(status_file,'stat_step_5_'+ dataset_id,ST_completed)
             print("...completed")
         else:
             
             with open(cache_group_of_obs_prefix  + dataset_id + ".pkl", 'rb') as file:
                 group_of_obs = pickle.load(file)
             
-            status=flush_status_in_file(status_file,status,'stat_step_5_'+ dataset_id,ST_skipped)
+            flush_status_in_file(status_file,'stat_step_5_'+ dataset_id,ST_skipped)
             print("...skipped, read from saved variable ...")
+        
+        flush_status_in_file(status_file,'stat_step_5_' + dataset_id + '_exectime',"{0:.2f} s".format(time.perf_counter()-start))
+        print(f'Execution time: {time.perf_counter()-start:.3f} second(s)')
             
         
         
-        print("\n#STEP 6: DOWNLOAD COPERNICUS DATA USING ", parallelisation, " parallelisation method.")
-        status=flush_status_in_file(status_file,status,'stat_step_6',ST_started)
-        status=flush_status_in_file(status_file,status,'stat_step_6_'+ dataset_id,ST_started)
+        print("\n#STEP 6-" + cf.l_dataset_short_name[dataset_id] + " : DOWNLOAD COPERNICUS DATA USING ", parallelisation, " parallelisation method.")
+        start = time.perf_counter()
+        flush_status_in_file(status_file,'stat_step_6',ST_started)
+        flush_status_in_file(status_file,'stat_step_6_'+ dataset_id,ST_started)
         
         print("\n Workflow {0:s}; dataset {1:s} ".format(workflow_name,dataset_id))
         print("Variables to extract: ",d_dataset_var[dataset_id])
@@ -1956,10 +1994,6 @@ if __name__ == '__main__':
             lat_cop=ds_cop['latitude']
             lon_cop=ds_cop['longitude']
             dat_cop=ds_cop['time']
-
-        
-        start = time.perf_counter()
-
         
         if parallelisation == 'mpProcess':
             pr={}
@@ -2030,51 +2064,54 @@ if __name__ == '__main__':
                 status_downloading_colocated_data_percent[dataset_id]=100*i/n_group_range
                 
                 completion_rate="{:.1f} %".format(status_downloading_colocated_data_percent[dataset_id])
-                status=flush_status_in_file(status_file,status,'stat_step_6_' + dataset_id + "_percent",completion_rate)
+                flush_status_in_file(status_file,'stat_step_6_' + dataset_id + "_percent",completion_rate)
             i=i+1
         
         # if parallelisation == 'dask':
             # res = client.gather(res)
         
-        status=flush_status_in_file(status_file,status,'stat_step_6_' + dataset_id + "_percent","100 %")
-        status=flush_status_in_file(status_file,status,'stat_step_6_' + dataset_id,ST_completed)
-        finish = time.perf_counter()
-        print(f'It took {finish-start:.3f} second(s) to finish')
+        flush_status_in_file(status_file,'stat_step_6_' + dataset_id + "_percent","100 %")
+        flush_status_in_file(status_file,'stat_step_6_' + dataset_id,ST_completed)
+        flush_status_in_file(status_file,'stat_step_6_' + dataset_id + '_exectime',"{0:.2f} s".format(time.perf_counter()-start))
+        print(f'Execution time: {time.perf_counter()-start:.3f} second(s)')
 
     if 4 in steps_2_run:
-        status=flush_status_in_file(status_file,status,'stat_step_4',ST_completed)
-    status=flush_status_in_file(status_file,status,'stat_step_5',ST_completed)
-    status=flush_status_in_file(status_file,status,'stat_step_6',ST_completed)
+        flush_status_in_file(status_file,'stat_step_4',ST_completed)
+    flush_status_in_file(status_file,'stat_step_5',ST_completed)
+    flush_status_in_file(status_file,'stat_step_6',ST_completed)
 
     
     for dataset_id in l_dataset:
-        print("\n#STEP 7: EXTRACT MINI-CUBES around observations...")
+        print("\n#STEP 7-" + cf.l_dataset_short_name[dataset_id] + " : EXTRACT MINI-CUBES around observations...")
+        start = time.perf_counter()
         print(dataset_id)
         
         outfile_dir=outdir_cop + workflow_name + "_" + cf.l_dataset_short_name[dataset_id] + "/"
         if not os.path.exists(outfile_dir):os.mkdir(outfile_dir)
         
         if (7 in steps_2_run) and (access_type != 'ARGO_INDEX'):
-            status=flush_status_in_file(status_file,status,'stat_step_7',ST_started)
-            status=flush_status_in_file(status_file,status,'stat_step_7_' + dataset_id,ST_started)
+            flush_status_in_file(status_file,'stat_step_7',ST_started)
+            flush_status_in_file(status_file,'stat_step_7_' + dataset_id,ST_started)
             colocated_data=get_copernicus_mini_cubes(workflow_name,df_in_situ_ini,ds_in_situ,dataset_id,i_dataset_stf,delta_px,outfile_dir,cache_copernicus_downloaded_data_index,d_dataset_var,verbose=verbose)
-            status=flush_status_in_file(status_file,status,'stat_step_7_' + dataset_id,ST_completed)
+            flush_status_in_file(status_file,'stat_step_7_' + dataset_id,ST_completed)
 
         else:
             if (7 in steps_2_run) and (access_type == 'ARGO_INDEX'):
                 print("ERROR: DO NOT EXTRACT MINI-CUBES FOR THE WHOLE INDEX, please")
-                status=flush_status_in_file(status_file,status,'stat_step_7_' + dataset_id,ST_error)
-                status=flush_status_in_file(status_file,status,'stat_step_7',ST_error)
+                flush_status_in_file(status_file,'stat_step_7_' + dataset_id,ST_error)
+                flush_status_in_file(status_file,'stat_step_7',ST_error)
             else:
                 print(" ... skipped")
-                status=flush_status_in_file(status_file,status,'stat_step_7_' + dataset_id,ST_skipped)
-                
-                
-        print("\n#STEP 8: display observations...")
+                flush_status_in_file(status_file,'stat_step_7_' + dataset_id,ST_skipped)
         
+        flush_status_in_file(status_file,'stat_step_7_' + dataset_id + '_exectime',"{0:.2f} s".format(time.perf_counter()-start))
+        print(f'Execution time: {time.perf_counter()-start:.3f} second(s)')
+                
+        print("\n#STEP 8-" + cf.l_dataset_short_name[dataset_id] + " : display observations...")
+        start = time.perf_counter()
         if (8 in steps_2_run) & (7 in steps_2_run) & (access_type != 'ARGO_INDEX'):
-            status=flush_status_in_file(status_file,status,'stat_step_8',ST_started)
-            status=flush_status_in_file(status_file,status,'stat_step_8_' + dataset_id,ST_started)
+            flush_status_in_file(status_file,'stat_step_8',ST_started)
+            flush_status_in_file(status_file,'stat_step_8_' + dataset_id,ST_started)
             
             n_obs=len(colocated_data['copernicus'].keys())
             
@@ -2089,7 +2126,7 @@ if __name__ == '__main__':
             cop_var_all_values=(colocated_data['copernicus'][0])[cop_var_name].values
             cop_var_UNIT=(colocated_data['copernicus'][0])[cop_var_name].units
             
-            print((colocated_data['insitu'][0])["CHLA"])
+            #print((colocated_data['insitu'][0])["CHLA"])
             obs_var_UNIT=(colocated_data['insitu'][0])["CHLA"].units
             
             for i_obs in range(n_obs):
@@ -2111,7 +2148,6 @@ if __name__ == '__main__':
                 
                 i_notnan=np.where(obs_chli < 99999)
                 
-                print("len(i_notnan[0])=",len(i_notnan[0]))
                 if len(i_notnan[0])==0:
                     obs_prei_notnan=[np.nan]
                     obs_chli_notnan=[np.nan]
@@ -2123,7 +2159,7 @@ if __name__ == '__main__':
 
                 #copernicus points:
                 
-                print("Extracting colocated copernicus variable:",cop_var_name)
+                if verbose: print("Extracting colocated copernicus variable:",cop_var_name)
                 cop_ds=colocated_data['copernicus'][i_obs]
                 cop_dat=cop_ds["time"].values
                 cop_lat=cop_ds["latitude"].values
@@ -2187,7 +2223,7 @@ if __name__ == '__main__':
                 ax.tick_params(axis='y',labelsize=6)
                 ax.tick_params(axis='z',labelsize=6)
 
-                print("The plot will be saved in " + fig_name_prefix + ".png")
+                if verbose: print("The plot will be saved in " + fig_name_prefix + ".png")
                 # plt.savefig
                 plt.savefig(fig_name_prefix + ".png", dpi=200)
                 pickle.dump(fig, open(fig_name_prefix + ".pkl", 'wb'))
@@ -2195,25 +2231,32 @@ if __name__ == '__main__':
                 #plt.show()
                 plt.close()
                 
+                if i_obs%10==0:
+                    print("i_obs=",i_obs)
+                    flush_status_in_file(status_file,'stat_step_8_' + dataset_id + '_percent',"{0:.1f} %".format(100*i_obs/n_obs))
                 # To see the figures in interactive mode:
                 # figx = pickle.load(open(fig_name_prefix + "pkl", 'rb'))
                 # figx.show() # Show the figure, edit it, etc.!
-                
-            status=flush_status_in_file(status_file,status,'stat_step_8_' + dataset_id,ST_completed)
+            
+            flush_status_in_file(status_file,'stat_step_8_' + dataset_id + '_percent',"100 %")
+            flush_status_in_file(status_file,'stat_step_8_' + dataset_id,ST_completed)
         else:
             if (8 in steps_2_run) and (access_type == 'ARGO_INDEX'):
                 print("ERROR: DO NOT PLOT FOR THE WHOLE INDEX, please")
-                status=flush_status_in_file(status_file,status,'stat_step_8_' + dataset_id,ST_error)
-                status=flush_status_in_file(status_file,status,'stat_step_8',ST_error)
+                flush_status_in_file(status_file,'stat_step_8_' + dataset_id,ST_error)
+                flush_status_in_file(status_file,'stat_step_8',ST_error)
             else:
                 print(" ... skipped")
-                status=flush_status_in_file(status_file,status,'stat_step_8',ST_skipped)
-                status=flush_status_in_file(status_file,status,'stat_step_8_' + dataset_id,ST_skipped)
+                flush_status_in_file(status_file,'stat_step_8',ST_skipped)
+                flush_status_in_file(status_file,'stat_step_8_' + dataset_id,ST_skipped)
+                
+        flush_status_in_file(status_file,'stat_step_8_' + dataset_id + '_exectime',"{0:.2f} s".format(time.perf_counter()-start))
+        print(f'Execution time: {time.perf_counter()-start:.3f} second(s)')
                 
     if (7 in steps_2_run) & (access_type != 'ARGO_INDEX'):
-        status=flush_status_in_file(status_file,status,'stat_step_7',ST_completed)
+        flush_status_in_file(status_file,'stat_step_7',ST_completed)
     if (8 in steps_2_run) & (access_type != 'ARGO_INDEX'):
-        status=flush_status_in_file(status_file,status,'stat_step_8',ST_completed)
+        flush_status_in_file(status_file,'stat_step_8',ST_completed)
         
        
         
