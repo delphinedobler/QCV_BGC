@@ -50,6 +50,8 @@ services:
       - MONGODB_NAME=${MONGODB_NAME}
       - MONGODB_USER=${MONGODB_USER}
       - MONGODB_PASSWORD=${MONGODB_PASSWORD}
+      - COPERNICUSMARINE_SERVICE_USERNAME=${COPERNICUSMARINE_SERVICE_USERNAME}
+      - COPERNICUSMARINE_SERVICE_PASSWORD=${COPERNICUSMARINE_SERVICE_PASSWORD}
     volumes:
       - ./:/home/serviceuser/service/
       - ./dev-secrets-ssh:/home/serviceuser/.ssh
