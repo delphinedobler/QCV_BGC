@@ -37,7 +37,6 @@ The boilerplate aims to help developers initialize a project with a base setup a
     The very first time :
     ```sh
     ./initfirst.sh
-    make config_init
     ```
 
     When you nwant to for recreate the .env prototype ( because of fundamental modifications )

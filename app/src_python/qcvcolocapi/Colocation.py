@@ -233,8 +233,14 @@ def get_resolution(workflow_name,cache_dir,cache_copernicus_resolution_file,clea
             try:
                 if verbose:print("\n\n\n ******* Reading spatio-temporal features for " + idataset)
                 
-                ds=copernicusmarine.open_dataset(dataset_id=idataset)
-                
+                try:
+                    print(f"Trying to retrieve dataset : {idataset}")
+                    ds=copernicusmarine.open_dataset(dataset_id=idataset)
+                except Exception as e:
+                    print("ERROR: while downloading data from cmems (1)")
+                    print(traceback.format_exc())
+                    raise(e)
+
                 i_dataset_stf['reso_lon_deg']=ds.attrs['lon_step']
                 i_dataset_stf['reso_lat_deg']=ds.attrs['lat_step']
                 i_dataset_stf['spat_lon_min']=ds.attrs['geospatial_lon_min']
@@ -253,9 +259,10 @@ def get_resolution(workflow_name,cache_dir,cache_copernicus_resolution_file,clea
                 
                 ds.close()
                 
-            except:
-                print("ERROR: while downloading data from cmems")
+            except Exception as e:
+                print("ERROR: while downloading data from cmems (2)")
                 print(traceback.format_exc())
+                raise(e)
 
             try:
                 
@@ -269,12 +276,13 @@ def get_resolution(workflow_name,cache_dir,cache_copernicus_resolution_file,clea
                 file.write(line2write + '\n')
                 file.close()
                 
-            except:
+            except Exception as e:
                 print("ERROR: while writing the cache_resolution file: " + cache_copernicus_resolution_file)
                 file.close()
                 if os.path.exists(cache_copernicus_resolution_file):
                     os.remove(cache_copernicus_resolution_file)
                 print(traceback.format_exc())
+                raise(e)
     else:
         if verbose: print("Reading spatial resolution and boundaries from cache file")
         Reso_index=pd.read_csv(cache_copernicus_resolution_file,sep=";")
@@ -1780,6 +1788,12 @@ if __name__ == '__main__':
     outdir_cop=cf.outdir_cop
     outdir_col_plots=cf.outdir_col_plots
     outfig_dir=outdir_col_plots + cf.wmo + "/"
+
+    if not os.path.exists(cf.insitu_data_dir):os.mkdir(cf.insitu_data_dir)
+    if not os.path.exists(cf.argo_dir):os.mkdir(cf.argo_dir)
+    if not os.path.exists(cf.cache_dir):os.mkdir(cf.cache_dir)
+    if not os.path.exists(cf.log_dir):os.mkdir(cf.log_dir)
+
     if not os.path.exists(outdir_cop):os.mkdir(outdir_cop)
     if not os.path.exists(outdir_col_plots):os.mkdir(outdir_col_plots)
     if not os.path.exists(outfig_dir):os.mkdir(outfig_dir)
