@@ -1,0 +1,81 @@
+services:
+
+  pok_app:    
+    container_name: ${DOCKER_NAME}
+    image: ${DOCKER_NAMESPACE}/${DOCKER_NAME}:${DOCKER_TAG}
+    platform: ${DOCKER_PLATFORM}
+    user: serviceuser
+    build:
+      context: .
+      args:
+        FORCE_USER_ID: "${FORCE_USER_ID:-1000}"
+        FORCE_GROUP_ID: "${FORCE_GROUP_ID:-1000}"
+        FORCE_USER_PWD: "${FORCE_USER_PWD:-passwd}"
+        APP_PACKAGE_NAME: "${APP_PACKAGE_NAME}"
+        DEVELOPER_GIT_USER_NAME: "${DEVELOPER_GIT_USER_NAME}"
+        DEVELOPER_GIT_USER_EMAIL: "${DEVELOPER_GIT_USER_EMAIL}"
+        # GIT_IFR_GITREPO: "${GIT_IFR_GITREPO}"
+        # GIT_IFR_LOGIN: "${GIT_IFR_LOGIN}"
+        # GIT_IFR_PASS: "${GIT_IFR_PASS}"
+      dockerfile: Dockerfile
+    environment:
+      - DOCKER_ENTRYPOINT_BYPASS=${DOCKER_ENTRYPOINT_BYPASS:-0}
+      - LANG=C.UTF-8 # Needed for sphinx ...
+      - FORCE_USER_ID=${FORCE_USER_ID:-1000}
+      - FORCE_GROUP_ID=${FORCE_GROUP_ID:-1000}
+      - FORCE_ENTRYPOINT_CHOWN=${FORCE_ENTRYPOINT_CHOWN:-0}
+      - APP_PACKAGE_NAME=${APP_PACKAGE_NAME:-noname_app}
+      - APP_START_OPTION=${APP_START_OPTION:-BASH}
+      - APP_EXEC_MODE=${APP_EXEC_MODE:-DEV}
+      - NETWORK_HOSTNAME=${NETWORK_HOSTNAME:-0.0.0.0}
+      - NETWORK_REVERSE_PROXY=${NETWORK_REVERSE_PROXY:-TRUE}
+      - NETWORK_BACK_INTERNAL_PORT=${NETWORK_BACK_INTERNAL_PORT:-8841}
+      - NETWORK_BACK_EXPOSED_PORT=${NETWORK_BACK_EXPOSED_PORT:-8841}
+      - NETWORK_FRONT_INTERNAL_PORT=${NETWORK_FRONT_INTERNAL_PORT:-8842}
+      - NETWORK_FRONT_EXPOSED_PORT=${NETWORK_FRONT_EXPOSED_PORT:-8842}
+      # - GIT_IFR_GITREPO=${GIT_IFR_GITREPO}
+      # - GIT_IFR_LOGIN=${GIT_IFR_LOGIN}
+      # - GIT_IFR_PASS=${GIT_IFR_PASS}
+      - POSTGRES_DB_HOST=${POSTGRES_DB_HOST}
+      - POSTGRES_DB_PORT=${POSTGRES_DB_PORT}
+      - POSTGRES_DB_NAME=${POSTGRES_DB_NAME}
+      - POSTGRES_DB_USER=${POSTGRES_DB_USER}
+      - POSTGRES_DB_PASSWORD=${POSTGRES_DB_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_USERNAME=${REDIS_USERNAME}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - MONGODB_HOST=${MONGODB_HOST}
+      - MONGODB_PORT=${MONGODB_PORT}
+      - MONGODB_NAME=${MONGODB_NAME}
+      - MONGODB_USER=${MONGODB_USER}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
+    volumes:
+      - ./:/home/serviceuser/service/
+      - ./dev-secrets-ssh:/home/serviceuser/.ssh
+      - ./dev-secrets:/home/serviceuser/secrets
+      - ./embedded-resources:/embedded-resources
+      - ${VOL_CONFIG:-./dev-mount-config}:/runtime/config
+      - ${VOL_DATA:-./dev-mount-data}:/runtime/data
+      - ${VOL_LOGS:-./dev-mount-log}:/runtime/log
+      - ${VOL_RUN:-./dev-mount-run}:/runtime/run
+      - ${VOL_EXT_LIBS:-./dev-external-libs}:/home/serviceuser/service/dev-external-libs
+      - persist-python:${VOL_PERSIST_MAMBA_ENV}
+    ports:
+      - "${NETWORK_BACK_EXPOSED_PORT}:${NETWORK_BACK_INTERNAL_PORT}"
+      - "${NETWORK_FRONT_EXPOSED_PORT}:${NETWORK_FRONT_INTERNAL_PORT}"
+      # - "${REDIS_PORT:-16379}:${REDIS_PORT:-16379}"
+      # - "${POSTGRES_DB_PORT:-15433}:${POSTGRES_DB_PORT:-15433}"
+      # - "${MONGODB_PORT:-27018}:${MONGODB_PORT:-27018}"
+    networks:
+      - py-boilerplate-network
+    tty: true
+    stdin_open: true
+
+networks:
+  py-boilerplate-network:
+    name: py-boilerplate-network
+    driver: bridge
+
+volumes:
+  persist-python:

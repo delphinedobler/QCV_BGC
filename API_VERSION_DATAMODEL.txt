@@ -1,0 +1,4 @@
+# API Datamodel version - D+2digits => DXX 
+# this is a source information that you fill by hand
+
+API_DATAMODEL_VERSION=D01

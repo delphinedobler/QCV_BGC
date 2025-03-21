@@ -1,0 +1,93 @@
+server {
+
+    listen 80;
+    # listen 443 ssl http2;
+    server_name localhost NETWORK_HOSTNAME;
+    # ssl_certificate /etc/ssl/certs/nginx/example1.crt;
+    # ssl_certificate_key /etc/ssl/certs/nginx/example1.key;
+    # include /etc/nginx/includes/ssl.conf;
+
+    root /var/www/html;
+
+
+    location = /favicon.ico {
+        return 204;
+        access_log     off;
+        log_not_found  off;
+    }
+
+    location / {
+        resolver 127.0.0.1 valid=30s;
+        include /etc/nginx/includes/proxy.conf;
+        proxy_pass http://NETWORK_HOSTNAME:NETWORK_FRONT_INTERNAL_PORT;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    location /api/ {
+        resolver 127.0.0.1 valid=30s;
+        include /etc/nginx/includes/proxy.conf;
+        proxy_pass http://NETWORK_HOSTNAME:NETWORK_BACK_INTERNAL_PORT;
+    }
+
+
+    location /pokapok/ {
+        include /etc/nginx/includes/proxy.conf;
+        allow all;
+
+    }
+
+
+    error_page 404 /404/page-not-found.html;
+    location = /404/page-not-found.html{
+                root /var/www/html;
+                internal;
+        }
+
+    error_page 502 /502/bad-gateway.html;
+    location = /502/bad-gateway.html{
+                root /var/www/html;
+                internal;
+        }
+
+    access_log on;
+    error_log /var/log/nginx/error.log error;
+}
+
+
+
+# server {
+
+#     listen 80;
+#     # listen 443 ssl http2;
+#     server_name localhost admin.pokapok.org;
+#     # ssl_certificate /etc/ssl/certs/nginx/example1.crt;
+#     # ssl_certificate_key /etc/ssl/certs/nginx/example1.key;
+#     # include /etc/nginx/includes/ssl.conf;
+
+
+#     root /var/www/html;
+
+#     location = /favicon.ico {
+#         return 204;
+#         access_log     off;
+#         log_not_found  off;
+#     }
+
+#     location /pokapok {
+#         include /etc/nginx/includes/proxy.conf;
+#         allow all;
+
+#     }
+
+
+#     error_page 404 /404/page-not-found.html;
+#     location = /404/page-not-found.html{
+#                 root /var/www/html;
+#                 internal;
+#         }
+
+#     access_log on;
+#     error_log /var/log/nginx/error.log error;
+# }
+

@@ -1,0 +1,4 @@
+# API Engine version - E+2digits => EXX 
+# this is a source information that you fill by hand
+
+API_ENGINE_VERSION=E01

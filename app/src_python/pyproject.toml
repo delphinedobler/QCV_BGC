@@ -1,0 +1,65 @@
+[project]
+name = "qcvcolocapi"
+requires-python = ">= 3.10"
+license = {text = "MIT"}
+dependencies = [
+    "numpy",
+    "pandas",
+    "sqlalchemy",
+    "affine",
+    "shapely",
+    "pyarrow",
+    "aiohttp",
+    "fastparquet",
+    "pydantic",
+    "inflect",
+    "asyncpg",
+    "fastapi",
+    "gunicorn",
+    "pyhumps",
+    "itsdangerous",
+    "python-keycloak",
+    "pyjwt",
+    "ipykernel",
+    "matplotlib",
+    "xarray",
+    "aioredis",
+    "bokeh",
+    "scipy",
+    "jinja2",
+    "sphinx",
+    "jupyter-sphinx",
+    "sphinx-book-theme",
+    "notebook",
+    "jupyterlab",
+    "myst-nb",
+    "jupyterlab-myst",
+    "pre-commit",
+    "apscheduler",
+    "faicons",
+    "netcdf4",
+    "h5netcdf",
+    "myst_parser",
+    "nbsphinx",
+    "psycopg2-binary",
+    #{url = "git+ssh://pok.gitlab.com/pokapok-projects/pkp0-reusable/libraries/boiled-lib.git#subdirectory=src_python", name = "boilerplate_shared_module"},
+]
+# readme = "README.md"
+dynamic = ["version"]
+
+[build-system]
+requires = ["setuptools>=64.0", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["qcvcolocapi"]
+
+[tool.setuptools_scm]
+fallback_version = "999"
+
+[tool.isort]
+profile = "black"
+skip_gitignore = true
+float_to_top = true
+default_section = "THIRDPARTY"
+known_first_party = "qcvcolocapi"

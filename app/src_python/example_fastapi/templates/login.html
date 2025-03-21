@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login</title>
+</head>
+<body>
+    <div id="login-container">
+        <h1>Welcome to Our Application</h1>
+        <a href="{{ url_for('route_auth') }}?redirect_url={{ redirect_url }}">Login with Keycloak</a>
+    </div>
+</body>
+</html>

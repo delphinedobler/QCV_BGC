@@ -1,0 +1,49 @@
+version: '3.5'
+
+services:
+
+  # PostGIS Servce
+  postGIS:
+    container_name: ${CONTAINER_NAME}
+    image: ${POSTGIS_IMAGE}
+    shm_size: '4gb'
+    # user: ${DOCKER_USER}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGDATA: /data/postgres
+    volumes:
+      # - ./entrypoint:/docker-entrypoint-initdb.d/
+      - vol-postGIS-v16:/data/postgres
+      - ./settings/extra.conf:/settings/extra.conf
+      - ${PROJECT_SQL_EXPORTS:-vol-default-exports}:/exports
+      - ${PROJECT_SQL_IMPORTS:-vol-default-imports}:/imports
+      - ${PROJECT_SQL_QUERIES:-vol-default-queries}:/queries
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # labels:
+    #   - traefik.enable=false
+    restart: unless-stopped
+    networks:
+      - py-boilerplate-network
+
+  
+
+# Volume storage
+volumes:
+  vol-default-exports:
+  vol-default-imports:
+  vol-default-queries:
+  vol-postGIS-v16:
+    # driver: local
+    # driver_opts:
+    #   type: 'none'
+    #   o: 'bind'
+    #   device: '${DATABASE_FOLDER}'
+networks:
+  py-boilerplate-network:
+    name: py-boilerplate-network
+    driver: bridge
+    external: true

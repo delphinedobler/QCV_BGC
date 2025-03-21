@@ -1,0 +1,3 @@
+## Shared lib ##
+-e /home/serviceuser/service/dev-external-libs/src_python/
+-e /home/serviceuser/service/app/src_python

@@ -1,0 +1,48 @@
+services:
+
+  mongodb:
+    image: mongo:latest
+    container_name: ${MONGODB_CONTAINER_NAME}
+    restart: always
+    user: ${FORCE_USER_ID}:${FORCE_GROUP_ID}
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-aSimplePassword}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-mangoDatabase}
+    volumes:
+      - ${DATABASE_FOLDER:-./.mongo-data}:/data/db
+    ports:
+      - "${MANGO_DB_PORT}:27017"
+    networks:
+      - py-boilerplate-network
+  
+  # mongo-express:
+  #   image: mongo-express
+  #   container_name: ${MONGOEXPRESS_CONTAINER_NAME}
+  #   restart: always
+  #   ports:
+  #     - "8081:8081"
+  #   environment:
+  #     ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+  #     ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+  #     ME_CONFIG_MONGODB_PORT: 27017
+  #     ME_CONFIG_MONGODB_SERVER: 'mongodb'
+  #     # ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_EXPRESS_USERNAME}
+  #     # ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASSWORD}
+  #     ME_CONFIG_BASICAUTH_ENABLED: false
+
+networks:
+  py-boilerplate-network:
+    name: py-boilerplate-network
+    driver: bridge
+    external: true
+
+# Volume storage
+# volumes:
+#   mongo-data:
+    # driver: local
+    # driver_opts:
+    #   type: 'none'
+    #   o: 'bind'
+    #   device: '${DATABASE_FOLDER}'
+

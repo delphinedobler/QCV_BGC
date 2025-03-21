@@ -1,0 +1,52 @@
+channels:
+  - conda-forge
+  # We want to have a reproducible setup, so we don't want default channels,
+  # which may be different for different users. All required channels should
+  # be listed explicitly here.
+  - nodefaults
+dependencies:
+  - conda=24.5.0
+  - python=3.12
+  # - poetry
+  # - conda-lock
+  # - fastapi
+  # - uvicorn[standard]
+  # - requests
+  # - psutil
+  # - numpy
+  # - matplotlib
+  # - pip
+  # - pip:
+  #   - psycopg2
+  - r-base=4.3.3
+  - r-conflicted
+  - r-fs
+  - r-bslib
+  - r-ncdf4
+  - r-irkernel
+  - r-mapproj
+  - r-gsw
+  - r-config
+  - r-arrow=16.1.0
+  - r-maps
+  - r-DBI
+  - r-RPostgres
+  - r-reticulate
+  - r-pracma
+  - r-jsonlite
+  - r-shiny
+  - r-shinythemes
+  - r-shinybusy
+  - r-fmsb
+  - r-bslib=0.7.0
+  - r-dplyr
+  - r-stringi
+  - r-sass
+  - r-htmltools
+  - r-foreach
+  - r-doParallel
+  - r-xml2
+  - r-roxygen2
+  - r-tidyverse
+
+
