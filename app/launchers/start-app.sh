@@ -225,7 +225,8 @@ case ${start_option} in
     APP_LOGFILE=$APP_LOGFILE.py_app.log
     echo_log 0 "  ..python application mode"
     echo_log 0 ""
-    $PYTHON_CMD /app/src_python/qcvcolocapi/Colocation.py > $APP_LOGFILE
+    # $PYTHON_CMD /app/src_python/qcvcolocapi/Colocation.py > $APP_LOGFILE
+    $PYTHON_CMD /app/src_python/qcvcolocapi/Colocation.py
     ;;
 "DEMO")
     APP_LOGFILE=$APP_LOGFILE.py_app.log

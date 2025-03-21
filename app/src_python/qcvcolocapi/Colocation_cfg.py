@@ -101,9 +101,9 @@ cache_copernicus_resolution_file = cache_dir + "/cache_datasets_for_"+workflow_n
 cache_copernicus_downloaded_data_index = cache_dir + "/cache_downloaded_data_index.csv"
 #cache_files prefixes (will be suffixed by + dataset_id + ".pkl" in the code)
 cache_group_of_obs_prefix = cache_dir + "/cache_group_of_obs_"
-clear_cache_copernicus_resolution=False
-clear_cache_copernicus_downloaded_data_index=False
-clear_cache_group_of_obs=False
+clear_cache_copernicus_resolution=True
+clear_cache_copernicus_downloaded_data_index=True
+clear_cache_group_of_obs=True
 
 # VI - additionnal logs 
 #######################
