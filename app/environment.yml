@@ -9,8 +9,7 @@ dependencies:
   - python=3.12
   - ipykernel
  
-  # System libraries
-  - portalocker>=3.1.1
+
 
   # Common science libraries
   - matplotlib>=3.10.1
@@ -55,6 +54,9 @@ dependencies:
     - faicons
     - netcdf4>=1.7.2
     - h5netcdf
+
+    # System libraries
+    - portalocker>=3.1.1
 
     # Specific
     - copernicusmarine>=2.0.1
