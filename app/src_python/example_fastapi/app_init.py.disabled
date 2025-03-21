@@ -1,0 +1,85 @@
+import asyncio
+import sys
+import signal
+import logging
+import traceback
+from contextlib import asynccontextmanager
+
+from .logic.storage.database.manager import db_manager
+
+from .logic.cache import *
+from .logic.storage.cache.manager import redis_manager
+
+
+logger = logging.getLogger('app_initialization')
+
+
+app_init_lock_path = '/tmp/app-init.lock'
+redis_app_lock_var = 'APP_INIT_LOCK'
+LOCK_TIMEOUT = 60  # seconds
+
+def signal_handler():
+    print(f"Received signal, stopping...")
+    sys.exit(0)
+    
+    
+# @asynccontextmanager
+# async def run_periodic_task(stop_event: asyncio.Event, time_s: int):
+#     loop = asyncio.get_event_loop()
+#     loop.add_signal_handler(signal.SIGINT, signal_handler)
+#     loop.add_signal_handler(signal.SIGTERM, signal_handler)
+#     task = loop.create_task(sync_cache_with_db_periodically(time_s=time_s, stop_event=stop_event))
+#     try:
+#         yield
+#     finally:
+#         stop_event.set()
+#         try:
+#             task.cancel()
+#             # loop.close()
+#         except asyncio.CancelledError:
+#             print("Task was cancelled.")
+
+async def sync_with_db_routine(time_s=40):
+    lock = None
+    redis_lock_key = "cache_sync_lock"
+    try:
+        lock = await redis_manager.acquire_lock(redis_lock_key)
+        if not lock:
+            logger.info("Another instance is already running the sync task.")
+        else:
+            logger.info("Launching cache sync routine ...")
+            while True:
+                await sync_cache_with_db_periodically(time_s=time_s)
+    except asyncio.CancelledError:
+        logger.info("Sync task cancelled. Releasing lock...")
+    except Exception as e:
+        logger.error(f"Error in sync routine: {e}")
+        logger.error(traceback.format_exc())
+    finally:
+        if lock:
+            await redis_manager.release_lock(lock)
+
+
+# if __name__ == "__main__":
+#     asyncio.run(main())
+
+async def initialize_app(from_db: bool = False):
+    try:
+        # if not os.path.exists(app_init_lock_path):
+        async with redis_manager.async_redis_client as redis:
+            lock_acquired = await redis.set(redis_app_lock_var, "locked", ex=LOCK_TIMEOUT, nx=True)
+            # with open(redis_manager.init_lock_path, 'w') as lock_file:
+            if lock_acquired:
+                await db_manager.initialize_database()
+                # lock_file.write("Db initialized\n")
+                logger.info("Database initialization complete.")
+                await initialize_cache(from_db=from_db)
+                # lock_file.write("Cache initialized\n")
+                logger.info("Cache initialization complete.")
+            else:
+                logger.info("Another worker is handling initialization.")
+    except Exception as e:
+        logger.error(str(e))
+        logger.error(traceback.format_exc())
+        
+    

@@ -1,0 +1,22 @@
+# NOTE: For frontends, don't fill name / version / prefix
+# url path constitued is /prefix/name/version
+
+# A back example
+main_api:
+  name: pyBoilerplateMainApi
+  version: 1.0
+  host: localhost
+  port: 8879
+  http_secured: false
+  reverse_proxy: true
+  prefix: /api
+
+# A front example
+main_front:
+  name:
+  version:
+  host: localhost
+  port: 8880
+  http_secured: false
+  reverse_proxy: true
+  prefix:

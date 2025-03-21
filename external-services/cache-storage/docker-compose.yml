@@ -1,0 +1,32 @@
+version: '3.5'
+
+services:
+
+  # Redis Service
+  redis:
+    container_name: ${CONTAINER_NAME}
+    image: ${REDIS_IMAGE}
+    environment:
+      - REDIS_PORT=${REDIS_PORT}
+    ports:
+      - ${REDIS_PORT}:6379
+    # volumes:
+    #   - "${DATA_VOLUME}:/runtime/resources"
+    networks:
+      - py-boilerplate-network
+
+  
+
+# Volume storage
+# volumes:
+#   vol-postGIS-v15:
+#     # driver: local
+#     # driver_opts:
+#     #   type: 'none'
+#     #   o: 'bind'
+#     #   device: '${DATABASE_FOLDER}'
+networks:
+  py-boilerplate-network:
+    name: py-boilerplate-network
+    driver: bridge
+    external: true

@@ -1,0 +1,73 @@
+channels:
+  - conda-forge
+  # We want to have a reproducible setup, so we don't want default channels,
+  # which may be different for different users. All required channels should
+  # be listed explicitly here.
+  - nodefaults
+dependencies:
+  # Python Related
+  - python=3.12
+  - ipykernel
+ 
+  # System libraries
+  - portalocker>=3.1.1
+
+  # Common science libraries
+  - matplotlib>=3.10.1
+  - pandas
+  - xarray
+  - scipy
+
+  # Notebook Related
+  - notebook
+  - jupyterlab
+  - jupyter-sphinx
+  - jupyterlab-myst
+  - myst-nb
+  - jupyter_bokeh
+  - bokeh
+  - bokeh_sampledata
+
+  # API related
+  # - fastapi
+  # - gunicorn
+  # - itsdangerous
+  # - pyhumps
+  # - jinja2
+  # - sphinx
+  # - sphinx-book-theme
+  # - bson
+
+  # SHINY Related
+  # - shiny
+  # - shinywidgets
+
+  # PIP Subsection
+  - pip
+  - pip:
+
+    # Development requisites
+    - -e /home/serviceuser/service/app/src_python
+    - pre-commit
+
+    # Science tools
+    - apscheduler
+    - faicons
+    - netcdf4>=1.7.2
+    - h5netcdf
+
+    # Specific
+    - copernicusmarine>=2.0.1
+
+    # Documentation tools
+    # - myst_parser
+    # - nbsphinx
+
+    # Database tools
+    # - pymongo[srv]
+
+    # External shared lib
+    # - boilerplate_shared_module@git+ssh://pok.gitlab.com/pokapok-projects/pkp0-reusable/libraries/boiled-lib.git#subdirectory=src_python
+
+    # Uncomment if using shiny
+    # - pytabulator

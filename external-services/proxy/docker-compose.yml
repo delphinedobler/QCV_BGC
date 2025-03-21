@@ -1,0 +1,27 @@
+version: "3.7"
+services:
+
+  proxy-admin:
+    container_name: ${CONTAINER_NAME}
+    image: nginx:latest
+    restart: always
+    networks:
+      - py-boilerplate-network
+    ports:
+      - 80:80
+    # - 443:443
+    volumes:
+      - ./proxy/conf/default.conf:/etc/nginx/conf.d/default.conf
+      - ./proxy/html/:/var/www/html/
+      - ./proxy/includes/:/etc/nginx/includes/
+      # - ./proxy/ssl/:/etc/ssl/certs/nginx/
+      - "${LOG_VOLUME:-vol-default-logs}:/var/log/nginx/"
+
+volumes:
+  vol-default-logs:
+
+networks:
+  py-boilerplate-network:
+    name: py-boilerplate-network
+    driver: bridge
+    external: true
