@@ -1,3 +1,4 @@
-copernicumarine >=2.0.1
-dask[distributed]
-portalocker
+copernicusmarine>=2.0.1
+netCDF4>=1.7.2
+matplotlib>=3.10.1
+portalocker>=3.1.1
