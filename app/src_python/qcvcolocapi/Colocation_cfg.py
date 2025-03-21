@@ -1,7 +1,9 @@
 # Colocation parameterisation file
 
 # Tool repository:
-tool_dir="C:/Users/ddobler/Documents/08_DD_scripts/09_FAIR-EASE/Colocation/"
+# tool_dir="C:/Users/ddobler/Documents/08_DD_scripts/09_FAIR-EASE/Colocation/"
+tool_dir="/runtime/data/"
+
 
 # I - input data selection
 ##########################
